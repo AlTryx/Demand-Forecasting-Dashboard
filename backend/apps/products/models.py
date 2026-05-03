@@ -3,6 +3,7 @@ from ...core.models import TimeStampedModel
 
 class Product(TimeStampedModel):
     name = models.CharField(max_length=20, blank=False)
+    category = models.CharField(max_length=20, blank=False)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     current_stock = models.IntegerField()
     business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE)
