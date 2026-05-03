@@ -33,8 +33,8 @@ class BusinessUser(TimeStampedModel):
         OWNER = "owner", "Owner"
         EMPLOYEE = "employee", "Employee"
 
-    user = models.ForeignKey('users.User')
-    business = models.ForeignKey('businesses.Business')
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE)
     role = models.CharField(max_length=30, choices=Roles.choices, default=Roles.EMPLOYEE)
     is_active = models.BooleanField(default=True)
 
