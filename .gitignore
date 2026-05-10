@@ -419,3 +419,6 @@ FodyWeavers.xsd
 
 .venv
 .env
+migrations/
+.pyc
+db.sqlite3

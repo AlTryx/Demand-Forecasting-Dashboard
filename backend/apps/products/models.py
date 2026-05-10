@@ -1,5 +1,5 @@
 from django.db import models
-from ...core.models import TimeStampedModel
+from core.models import TimeStampedModel
 
 class Product(TimeStampedModel):
     name = models.CharField(max_length=20, blank=False)
@@ -11,11 +11,11 @@ class Product(TimeStampedModel):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(current_stock__gte=0),
+                condition=models.Q(current_stock__gte=0),
                 name='current_stock_gte_0'
             ),
             models.CheckConstraint(
-                check=models.Q(price__gte=0),
+                condition=models.Q(price__gte=0),
                 name='price_gte_0'
             )
         ]

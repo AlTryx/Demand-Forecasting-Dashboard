@@ -1,10 +1,10 @@
 from django.db import models
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.contrib.auth.models import AbstractUser
-from ...core.models import TimeStampedModel
+from core.models import TimeStampedModel
 
 
-class CustomUser(AbstractUser, TimeStampedModel):
+class User(AbstractUser, TimeStampedModel):
     username_validator = UnicodeUsernameValidator()
 
     username = models.CharField(
@@ -21,7 +21,7 @@ class CustomUser(AbstractUser, TimeStampedModel):
     last_name = models.CharField(max_length=30, blank=False)
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
-    # This tells Django which fields to ask for when running 'python manage.py createsuperuser'. 'username' and 'password' are required by default.
+    USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email", "first_name", "last_name"]
 
     def __str__(self):

@@ -1,5 +1,5 @@
 from django.db import models
-from ...core.models import TimeStampedModel
+from core.models import TimeStampedModel
 
 class SalesRecord(TimeStampedModel):
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
@@ -9,7 +9,7 @@ class SalesRecord(TimeStampedModel):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(quantity_sold__gte=0),
+                condition=models.Q(quantity_sold__gte=0),
                 name='quantity_sold_gte_0'
             )
         ]
