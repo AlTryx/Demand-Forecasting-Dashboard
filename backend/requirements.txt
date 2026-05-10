@@ -1,3 +1,6 @@
 #OIDC
 django-allauth
 django
+djangorestframework
+djangorestframework-simplejwt
+dotenv
