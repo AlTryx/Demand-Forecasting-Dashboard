@@ -1,4 +1,3 @@
-from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -7,10 +6,10 @@ import re
 class UserService:
     @staticmethod
     def get_user(user_id):
-        user = get_user_model()
+        active_user = get_user_model()
         try:
-            return user.objects.get(id=user_id)
-        except user.DoesNotExist:
+            return active_user.objects.get(id=user_id)
+        except active_user.DoesNotExist:
             return None
         except Exception as e:
             print(f"Error fetching user {user_id}: {e}")
@@ -31,13 +30,12 @@ class UserService:
     def create(validated_data):
         password = validated_data["password"]
         UserService.validate_password(password)
-        user = User.objects.create(
+        active_user = get_user_model()
+        user = active_user.objects.create_user(
             username=validated_data["username"],
             password=password,
             email=validated_data["email"],
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"]
         )
-        user.save()
         return user
-
