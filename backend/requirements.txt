@@ -1,6 +1,11 @@
 #OIDC
 django-allauth
+#django
 django
 djangorestframework
+#JWT
 djangorestframework-simplejwt
+
 dotenv
+
+drf-spectacular

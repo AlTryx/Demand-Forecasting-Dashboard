@@ -5,7 +5,7 @@ from ..services import UserService
 class RegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ('username', 'email', 'password', 'first_name', 'last_name')
+        fields = ('username', 'first_name', 'last_name', 'email', 'password', )
         extra_kwargs = {"password": {"write_only": True}}
 
     def validate_password(self, value):
