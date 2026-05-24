@@ -16,7 +16,7 @@ export default function Login() {
         setError('')
         try {
             const data = await login(username, password)
-            localStorage.setItem("token", data.token);
+            localStorage.setItem("token", data.access);
             console.log("Successful login, Access token is:", data.access);
             navigate("/dashboard");
         } catch {
@@ -25,6 +25,10 @@ export default function Login() {
         } finally {
             setLoading(false)
         }
+    }
+
+    const redirectToRegister = () => {
+        navigate("/signup")
     }
 
     return (
@@ -58,6 +62,7 @@ export default function Login() {
                        onChange={e => setPassword(e.target.value)}
                 />
             </motion.div>
+
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <button className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg py-2.5 mt-6 transition-colors"
                         type="submit"
@@ -65,6 +70,18 @@ export default function Login() {
                 >
                     {loading ? "Logging in..." : "Sign In"}
                 </button>
+            </motion.div>
+
+            <motion.div whileHover={{ y: -2 }}>
+                <p className="mt-3 text-sm text-gray-400">
+                    Don't have an account?{" "}
+                    <span
+                        onClick={redirectToRegister}
+                        className="text-purple-400 hover:text-purple-200 cursor-pointer underline"
+                    >
+                        Sign up today!
+                    </span>
+                </p>
             </motion.div>
         </form>
     )

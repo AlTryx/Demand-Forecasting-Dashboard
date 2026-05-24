@@ -18,7 +18,7 @@ function AnimatedRoutes() {
                 <Route element={<PublicLayout />}>
                     <Route path="/" element={<PageTransition><Home /></PageTransition>} />
                     <Route path="/signin" element={<PageTransition><Login /></PageTransition>} />
-                    <Route path="/registration" element={<PageTransition><Registration /></PageTransition>} />
+                    <Route path="/signup" element={<PageTransition><Registration /></PageTransition>} />
                 </Route>
                 <Route element={<ProtectedLayout />}>
                     <Route path="/profile" element={<PageTransition><Profile /></PageTransition>} />
