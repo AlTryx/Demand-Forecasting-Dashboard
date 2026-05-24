@@ -1,12 +1,14 @@
 import { useState } from "react"
 import { motion } from "framer-motion";
 import { login } from "../hooks/authService";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('');
+    const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault()
@@ -16,12 +18,15 @@ export default function Login() {
             const data = await login(username, password)
             localStorage.setItem("token", data.token);
             console.log("Successful login, Access token is:", data.access);
+            navigate("/dashboard");
         } catch {
             setError('Invalid username or password')
+            console.log("Error" + error)
         } finally {
             setLoading(false)
         }
     }
+
     return (
         <form className = "w-full max-w-[340px] mx-auto mt-10 p-8 rounded-2xl bg-white/75 backdrop-blur-md shadow-xl border border-zinc-200/50" onSubmit = {handleLogin} >
             <h2 style={{ margin: '10px auto', color: '#1f2937', fontSize: '1.5rem', fontWeight: 700 }}>
