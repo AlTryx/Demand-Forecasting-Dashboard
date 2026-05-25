@@ -3,15 +3,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 
 class ProductService:
-    def get_product(self, product_id):
-        try:
-            return Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            raise ValueError("Product does not exist.")
-
-    def get_all_products(self, business):
-        return Product.objects.filter(business=business).order_by("created_at")
-
     @staticmethod
     def create_product(name, category, price, current_stock, business):
         return Product.objects.create(
@@ -21,6 +12,15 @@ class ProductService:
             current_stock=current_stock,
             business=business
         )
+
+    def get_product(self, product_id):
+        try:
+            return Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            raise ValueError("Product does not exist.")
+
+    def get_all_products(self, business):
+        return Product.objects.filter(business=business).order_by("created_at")
 
     def update_product(self, product_id, **kwargs):
         product = self.get_product(product_id)
