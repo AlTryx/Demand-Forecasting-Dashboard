@@ -3,6 +3,9 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 
 class ProductService:
+    def get_service(self):
+        return ProductService()
+
     @staticmethod
     def create_product(name, category, price, current_stock, business):
         return Product.objects.create(

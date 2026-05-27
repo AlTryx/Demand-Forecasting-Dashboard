@@ -5,16 +5,6 @@ export default function Home() {
     return (
         <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 text-center max-w-4xl mx-auto">
 
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="inline-flex items-center gap-2 bg-purple-50 border border-purple-200 text-purple-700 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 shadow-sm"
-            >
-                <span className="flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                Next-Generation AI Forecasting Engine
-            </motion.div>
-
             <motion.h1
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}

@@ -15,3 +15,6 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return ProductService().create_product(**validated_data)
+
+# TO DO: class StockSerializer(serializers.Serializer):
+#     amount = serializers.IntegerField(min_value=1)
