@@ -1,7 +1,6 @@
 from .models import Product
 from rest_framework.exceptions import NotFound, ValidationError
 
-
 class ProductService:
     @staticmethod
     def create_product(name, category, price, current_stock, business):
