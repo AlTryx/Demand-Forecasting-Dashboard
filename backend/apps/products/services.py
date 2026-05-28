@@ -1,11 +1,8 @@
 from .models import Product
-from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
+from rest_framework.exceptions import NotFound, ValidationError
+
 
 class ProductService:
-    def get_service(self):
-        return ProductService()
-
     @staticmethod
     def create_product(name, category, price, current_stock, business):
         return Product.objects.create(
@@ -16,25 +13,27 @@ class ProductService:
             business=business
         )
 
-    def get_product(self, product_id):
+    def get_product(self, product_id, business):
         try:
-            return Product.objects.get(id=product_id)
+            return Product.objects.get(id=product_id, business=business)
         except Product.DoesNotExist:
-            raise ValueError("Product does not exist.")
+            raise NotFound("Product does not exist.")
 
     def get_all_products(self, business):
         return Product.objects.filter(business=business).order_by("created_at")
 
-    def update_product(self, product_id, **kwargs):
-        product = self.get_product(product_id)
+    def update_product(self, product_id, business, **kwargs):
+        product = self.get_product(product_id, business)
+
         for field, value in kwargs.items():
             if hasattr(product, field):
                 setattr(product, field, value)
+
         product.save()
         return product
 
-    def delete_product(self, product_id):
-        product = self.get_product(product_id)
+    def delete_product(self, product_id, business):
+        product = self.get_product(product_id, business)
         product.delete()
 
     def get_products_by_category(self, business, category):
@@ -61,21 +60,25 @@ class ProductService:
             current_stock=0
         )
 
-    def decrease_stock(self, product_id, amount):
+    def decrease_stock(self, product_id, business, amount):
         if amount <= 0:
-            raise ValueError("Amount must be positive")
-        product = self.get_product(product_id)
+            raise ValidationError("Amount must be positive")
+
+        product = self.get_product(product_id, business)
+
         if product.current_stock < amount:
-            raise ValueError("Not enough stock")
+            raise ValidationError("Not enough stock")
+
         product.current_stock -= amount
         product.save()
         return product
 
-    def increase_stock(self, product_id, amount):
+    def increase_stock(self, product_id, business, amount):
         if amount <= 0:
-            raise ValueError("Amount must be positive")
-        product = self.get_product(product_id)
-        #TO DO: check for derivative and cap given by prediction
+            raise ValidationError("Amount must be positive")
+
+        product = self.get_product(product_id, business)
+
         product.current_stock += amount
         product.save()
         return product
