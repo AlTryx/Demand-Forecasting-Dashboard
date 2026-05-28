@@ -13,7 +13,10 @@ class BusinessService:
         try:
             return Business.objects.get(business_id, owner=owner)
         except Business.DoesNotExist:
-            return NotFound("Business does not exist.")
+            raise NotFound("Business does not exist.")
+
+    def get_all_businesses(self, owner):
+        return Business.objects.filter(owner=owner).order_by("created_at")
 
     def update_business(self, business_id, owner, **kwargs):
         business = self.get_business(business_id, owner)
