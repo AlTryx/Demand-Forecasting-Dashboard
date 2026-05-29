@@ -22,6 +22,11 @@ class ProductViewSet(viewsets.ViewSet):
         business = self.get_business(request)
         products = service.get_all_products(business)
 
+        page = self.paginate_queryset(products)
+        if page is not None:
+            serializer = ProductSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data)
 
