@@ -4,15 +4,25 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from .serializers import ProductSerializer
 from .services import ProductService
+from .permissions import HasActiveBusiness
 
 class ProductViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasActiveBusiness]
 
     def get_business(self, request):
         business_user = request.user.businessuser_set.first()
         if not business_user:
             raise ValueError("User has no business")
         return business_user.business
+
+    def paginate_and_respond(self, queryset):
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ProductSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = ProductSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     # CRUD
 
@@ -22,13 +32,7 @@ class ProductViewSet(viewsets.ViewSet):
         business = self.get_business(request)
         products = service.get_all_products(business)
 
-        page = self.paginate_queryset(products)
-        if page is not None:
-            serializer = ProductSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+        return self.paginate_and_respond(products)
 
     def create(self, request):
         service = ProductService()
@@ -127,9 +131,7 @@ class ProductViewSet(viewsets.ViewSet):
             )
 
         products = service.search_products_by_name(business, query)
-
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+        return self.paginate_and_respond(products)
 
     @action(detail=False, methods=["get"], url_path="low_stock")
     def low_stock(self, request):
@@ -139,9 +141,7 @@ class ProductViewSet(viewsets.ViewSet):
         threshold = int(request.query_params.get("threshold", 10))
 
         products = service.get_low_stock_products(business, threshold)
-
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+        return self.paginate_and_respond(products)
 
     @action(detail=False, methods=["get"], url_path="out_of_stock")
     def out_of_stock(self, request):
@@ -149,9 +149,7 @@ class ProductViewSet(viewsets.ViewSet):
 
         business = self.get_business(request)
         products = service.get_out_of_stock_products(business)
-
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+        return self.paginate_and_respond(products)
 
     # Stock actions
 
