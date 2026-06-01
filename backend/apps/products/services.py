@@ -19,7 +19,7 @@ class ProductService:
             raise NotFound("Product does not exist.")
 
     def get_all_products(self, business):
-        return Product.objects.filter(business=business).order_by("created_at")
+        return Product.objects.filter(business=business).order_by("created_at").select_related('business')
 
     def update_product(self, product_id, business, **kwargs):
         product = self.get_product(product_id, business)
