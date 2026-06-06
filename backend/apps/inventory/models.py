@@ -9,3 +9,6 @@ class Inventory(TimeStampedModel):
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
     days_of_stock_left = models.IntegerField()
     status = models.CharField(max_length=20, choices=InventoryStatus.choices, default=InventoryStatus.OK)
+
+    #KPIs
+    recommended_reorder_quantity = models.IntegerField(default=0)
