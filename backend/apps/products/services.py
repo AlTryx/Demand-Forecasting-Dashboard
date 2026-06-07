@@ -21,6 +21,9 @@ class ProductService:
     def get_all_products(self, business):
         return Product.objects.filter(business=business).order_by("created_at").select_related('business')
 
+    def get_all_active_products_for_system(self):
+        return Product.objects.all()
+
     def update_product(self, product_id, business, **kwargs):
         product = self.get_product(product_id, business)
 
