@@ -48,7 +48,6 @@ class ForecastingService:
 
         weekly_df['month'] = weekly_df['week_start'].dt.month
 
-        # Капсулираме повтарящата се група за DRY ефект
         grouped = weekly_df.groupby('product_id')['quantity_sold']
         weekly_df['lag_1_week'] = grouped.shift(1)
         weekly_df['lag_2_weeks'] = grouped.shift(2)
