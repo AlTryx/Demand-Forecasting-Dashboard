@@ -4,7 +4,7 @@ from .models import ForecastResult
 class ForecastResultSerializer(serializers.ModelSerializer):
     horizon_display = serializers.CharField(source='get_horizon_display', read_only=True)
 
-    class SummaryMeta:
+    class Meta:
         model = ForecastResult
         fields = [
             'id',
