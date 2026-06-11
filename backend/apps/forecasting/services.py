@@ -4,12 +4,18 @@ import numpy as np
 from django.db import transaction
 from sklearn.ensemble import RandomForestRegressor
 from apps.sales.models import SalesRecord
-from apps.products.models import Product
-from apps.products.services import ProductService
 from .models import ForecastResult
 from sklearn.metrics import mean_absolute_error
+from rest_framework.exceptions import NotFound, ValidationError
+from apps.products.models import Product
 
 class ForecastingService:
+    def get_latest_forecast_for_product(self, business, product_id):
+        try:
+            product = Product.objects.get(id=product_id, business=business)
+        except Product.DoesNotExist:
+            raise NotFound("Product not found or access denied.")
+        return ForecastResult.objects.filter(product=product)
 
     @classmethod
     def run_prediction_pipeline(cls):
