@@ -9,3 +9,9 @@ djangorestframework-simplejwt
 dotenv
 
 drf-spectacular
+
+#CSV
+pandas
+#ML
+scikit-learn 
+numpy
