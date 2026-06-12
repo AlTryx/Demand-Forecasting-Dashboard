@@ -19,3 +19,23 @@ class Product(TimeStampedModel):
                 name='price_gte_0'
             )
         ]
+
+class StockLog(models.Model):
+    class ChangeReasons(models.TextChoices):
+        SALE = "SALE", "Customer Purchase"
+        RESTOCK = "RESTOCK", "Supplier Delivery"
+        WASTE = "WASTE", "Damaged / Expired Goods"
+        CORRECTION = "CORRECTION", "Manual Inventory Count Audit"
+
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, related_name='stock_logs')
+    quantity_changed = models.IntegerField()
+    reason = models.CharField(max_length=20, choices=ChangeReasons.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['product', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name} changed by {self.quantity_changed} ({self.reason})"
