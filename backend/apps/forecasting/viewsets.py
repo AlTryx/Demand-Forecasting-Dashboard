@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -8,7 +8,7 @@ from .services import ForecastingService
 from apps.products.services import ProductService
 from rest_framework.exceptions import ValidationError
 
-class ForecastingViewSet(viewsets.ReadOnlyModelViewSet):
+class ForecastingViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     permission_classes=[IsAuthenticated]
 
     queryset = ForecastResult.objects.all()
@@ -25,7 +25,7 @@ class ForecastingViewSet(viewsets.ReadOnlyModelViewSet):
         product_id = request.query_params.get('product_id')
 
         if not product_id:
-            raise ValidationError({"product_id": "This query parameter is required to view forecasts."})
+            raise ValidationError({"product_id": "Product id parameter is required to view forecasts."})
 
         forecasting_queryset = forecasting_service.get_latest_forecast_for_product(
             business=business,
