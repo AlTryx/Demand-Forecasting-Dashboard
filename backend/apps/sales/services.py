@@ -1,30 +1,24 @@
-from .models import SalesRecord
+from .models import Order, OrderLine
+from django.db import transaction
 from rest_framework.exceptions import NotFound, ValidationError
+from apps.products.services import ProductService
 
 class SalesService:
-    @staticmethod
-    def create_sales_record(product, date, quantity_sold):
-        return SalesRecord.objects.create(
-            product=product,
-            date=date,
-            quantity_sold=quantity_sold
-        )
-
-    def get_sales_record(self, sales_record_id, product):
-        try:
-            return SalesRecord.objects.get(salesrecord_id=sales_record_id, product=product)
-        except SalesRecord.DoesNotExist:
-            raise NotFound("Sales record does not exist.")
-
-    def get_all_sales_records(self, product):
-        return SalesRecord.objects.filter(product=product).order_by("created_at")
-
-    def update_sales_record(self, sales_record_id, product, **kwargs):
-        sales_record = self.get_sales_record(sales_record_id, product)
-
-        for field, value in kwargs.items():
-            if hasattr(sales_record, field):
-                setattr(sales_record, field, value)
-
-        sales_record.save()
-        return sales_record
+    def process_checkout(self, business, items_data, payment_method):
+        with transaction.atomic():
+            order = Order.objects.create(business=business,payment_method=payment_method)
+            product_service = ProductService()
+            for item in items_data:
+                product = product_service.get_product(item['product_id'], business)
+                OrderLine.objects.create(
+                    order=order,
+                    product=product,
+                    quantity_sold=item['quantity'],
+                    unit_price_at_sale=product.price
+                )
+                product_service.decrease_stock(
+                    product_id=product.id,
+                    business=business,
+                    amount=item['quantity']
+                )
+            return order
