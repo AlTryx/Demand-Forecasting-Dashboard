@@ -4,7 +4,7 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 from apps.businesses.models import Business
 from apps.products.models import Product
-from apps.sales.models import SalesRecord
+from apps.sales.models import Order, OrderLine
 from apps.users.models import BusinessUser
 
 User = get_user_model()
@@ -17,18 +17,16 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         csv_path = options['csv_path']
-        self.stdout.write(f"📖 Opening the real archive from: {csv_path}...")
 
-        # 1. Loading the csv kaggle data
+        # Loading the csv kaggle data
         df = pd.read_csv(csv_path)
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values(by='date')
 
-        self.stdout.write(f"✅ Successfully loaded {len(df)} transactions. Initializing...")
+        self.stdout.write(f"Successfully loaded {len(df)} transactions")
 
         with transaction.atomic():
-            self.stdout.write("🗑️ Cleaning the old database data...")
-            SalesRecord.objects.all().delete()
+            Order.objects.all().delete()
             Product.objects.all().delete()
             Business.objects.all().delete()
 
@@ -66,7 +64,6 @@ class Command(BaseCommand):
             unique_items = sorted(df['item'].unique())[:20]
             product_cache = {} # Key: (store_id, item_id) -> Product object
 
-            self.stdout.write("📦 Catalizing ...")
             for store_id in unique_stores:
                 bus_obj = business_cache[store_id]
                 for item_id in unique_items:
@@ -84,24 +81,41 @@ class Command(BaseCommand):
             # 5. filtering the dataset
             filtered_df = df[df['store'].isin(unique_stores) & df['item'].isin(unique_items)]
 
-            self.stdout.write(f"⚡ Packeting of {len(filtered_df)} real time chronologies...")
-            sales_records_to_create = []
+            self.stdout.write(f"Packeting of {len(filtered_df)} real time chronologies")
+            orders_to_create = []
+            order_lines_to_create = []
 
-            for _, row in filtered_df.iterrows():
-                s_id = int(row['store'])
-                i_id = int(row['item'])
+            for index, row in filtered_df.iterrows():
+                store_id = int(row['store'])
+                item_id = int(row['item'])
+                row_date = (row['date']).to_pydatetime()
 
-                product_obj = product_cache.get((s_id, i_id))
-                if product_obj:
-                    sales_records_to_create.append(
-                        SalesRecord(
-                            product=product_obj,
-                            date=row['date'].date(),
-                            quantity_sold=int(row['sales'])
-                        )
+                business_obj = business_cache.get(store_id)
+                product_obj = product_cache.get((store_id, item_id))
+                if business_obj and product:
+                    order = Order(
+                        business=business_obj,
+                        created_at=row_date,
+                        payment_method=Order.PaymentMethods.CARD
                     )
+                    orders_to_create.append(order)
+                    order._temp_product = product_obj
+                    order._temp_quantity = int(row['sales'])
 
-            self.stdout.write("📥 Saving the transactions in SQLite...")
-            SalesRecord.objects.bulk_create(sales_records_to_create, batch_size=10000)
+            self.stdout.write("Saving the Order items")
+            saved_orders = Order.objects.bulk_create(orders_to_create, batch_size=5000)
 
-        self.stdout.write(self.style.SUCCESS("🎉 Database loaded with data!"))
+            self.stdout.write("Doing the same thing for OrderLines")
+            for order in saved_orders:
+                order_lines_to_create.append(
+                    OrderLine(
+                        order=order,
+                        product=order._temp_product,
+                        quantity_sold=order._temp_quantity,
+                        unit_price_at_sale=order._temp_product.price
+                    )
+                )
+            self.stdout.write("Saving the OrderLine items")
+            OrderLine.objects.bulk_create(order_lines_to_create, batch_size=5000)
+
+        self.stdout.write(self.style.SUCCESS("Database loaded with data!"))

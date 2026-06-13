@@ -1,4 +1,4 @@
-from .models import Product
+from .models import Product, StockLog
 from rest_framework.exceptions import NotFound, ValidationError
 
 class ProductService:
@@ -10,6 +10,14 @@ class ProductService:
             price=price,
             current_stock=current_stock,
             business=business
+        )
+
+    @staticmethod
+    def create_stock_log(product, quantity_changed, reason):
+        return StockLog.objects.create(
+            product=product,
+            quantity_changed=quantity_changed,
+            reason=reason
         )
 
     def get_product(self, product_id, business):
@@ -62,7 +70,7 @@ class ProductService:
             current_stock=0
         )
 
-    def decrease_stock(self, product_id, business, amount):
+    def decrease_stock(self, product_id, business, amount, reason=StockLog.ChangeReasons.SALE):
         if amount <= 0:
             raise ValidationError("Amount must be positive")
 
@@ -73,9 +81,11 @@ class ProductService:
 
         product.current_stock -= amount
         product.save()
+
+        self.create_stock_log(product, -amount, reason)
         return product
 
-    def increase_stock(self, product_id, business, amount):
+    def increase_stock(self, product_id, business, amount, reason=StockLog.ChangeReasons.RESTOCK):
         if amount <= 0:
             raise ValidationError("Amount must be positive")
 
@@ -83,4 +93,6 @@ class ProductService:
 
         product.current_stock += amount
         product.save()
+
+        self.create_stock_log(product, amount, reason)
         return product

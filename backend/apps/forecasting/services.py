@@ -2,12 +2,15 @@ import datetime
 import pandas as pd
 import numpy as np
 from django.db import transaction
+from django.db.models import Sum
 from sklearn.ensemble import RandomForestRegressor
-from apps.sales.models import SalesRecord
+from apps.sales.models import Order, OrderLine
 from .models import ForecastResult
 from sklearn.metrics import mean_absolute_error
 from rest_framework.exceptions import NotFound, ValidationError
 from apps.products.models import Product
+from apps.products.services import ProductService
+from django.db.models.functions import TruncDate
 
 class ForecastingService:
     def get_latest_forecast_for_product(self, business, product_id):
@@ -41,7 +44,13 @@ class ForecastingService:
     @staticmethod
     def _fetch_sales_data():
         print("ML - Fetching transactional history")
-        sales_qs = SalesRecord.objects.all().values('product_id', 'date', 'quantity_sold')
+
+        sales_qs = OrderLine.objects.annotate(
+            date=TruncDate('order__created_at')
+        ).values('product_id', 'date').annotate(
+            quantity_sold=Sum('quantity_sold')
+        ).order_by('product_id', 'date')
+
         return pd.DataFrame(list(sales_qs))
 
     @staticmethod
