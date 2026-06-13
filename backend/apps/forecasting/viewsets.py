@@ -22,15 +22,17 @@ class ForecastingViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     def list(self, request, *args, **kwargs):
         forecasting_service = ForecastingService()
         business = self.get_business(request)
+        business_id = business.id
         product_id = request.query_params.get('product_id')
 
-        if not product_id:
-            raise ValidationError({"product_id": "Product id parameter is required to view forecasts."})
+        if product_id:
+            forecasting_queryset = forecasting_service.get_latest_forecast_for_product(
+                business=business,
+                product_id=product_id
+            )
 
-        forecasting_queryset = forecasting_service.get_latest_forecast_for_product(
-            business=business,
-            product_id=product_id
-        )
+        else:
+            forecasting_queryset = forecasting_service.get_latest_n_forecasts(business_id)
 
         serializer = ForecastResultSerializer(forecasting_queryset, many=True)
         return Response(serializer.data)

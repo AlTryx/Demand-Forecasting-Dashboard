@@ -9,6 +9,7 @@ from .models import ForecastResult
 from sklearn.metrics import mean_absolute_error
 from rest_framework.exceptions import NotFound, ValidationError
 from apps.products.models import Product
+from apps.business.models import Business
 from apps.products.services import ProductService
 from django.db.models.functions import TruncDate
 
@@ -19,6 +20,13 @@ class ForecastingService:
         except Product.DoesNotExist:
             raise NotFound("Product not found or access denied.")
         return ForecastResult.objects.filter(product=product)
+
+    def get_latest_n_forecasts(self, business_id):
+        try:
+            business = Business.objects.get(id=business_id)
+        except Business.DoesNotExist:
+            raise NotFound("Business not found or access denied.")
+        return ForecastResult.objects.filter(product__business=business).order_by('-created_at')[:100]
 
     @classmethod
     def run_prediction_pipeline(cls):
