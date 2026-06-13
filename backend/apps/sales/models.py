@@ -1,6 +1,7 @@
 from django.db import models
 from core.models import TimeStampedModel
 from django.core.validators import MinValueValidator
+from django.utils import timezone
 
 class Order(models.Model):
     class PaymentMethods(models.TextChoices):
@@ -9,7 +10,7 @@ class Order(models.Model):
         TRANSFER = "TRANSFER", "Bank Transfer"
 
     business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE, related_name='orders')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     payment_method = models.CharField(max_length=20, choices=PaymentMethods.choices, default=PaymentMethods.CASH)
 
     class Meta:
