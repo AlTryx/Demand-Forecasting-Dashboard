@@ -15,3 +15,6 @@ pandas
 #ML
 scikit-learn 
 numpy
+
+#postgresql
+psycopg2-binary
