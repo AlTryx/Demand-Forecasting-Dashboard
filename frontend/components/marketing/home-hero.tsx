@@ -28,15 +28,6 @@ export function HomeHero() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-background" />
 
       <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-4 py-24 text-center">
-        <motion.span
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md"
-        >
-          <span className="size-1.5 rounded-full bg-accent" />
-          Machine-learning demand forecasting
-        </motion.span>
 
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
