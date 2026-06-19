@@ -33,11 +33,12 @@ export function ContactSection() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const form = event.currentTarget
     setStatus("submitting")
     // Simulated submission. Swap for a POST to your contact endpoint when ready.
     await new Promise((resolve) => setTimeout(resolve, 900))
+    form.reset()
     setStatus("success")
-    event.currentTarget.reset()
   }
 
   return (
