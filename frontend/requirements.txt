@@ -1,6 +1,0 @@
-react
-npm create vite@latest . -- --template react npm i react-router-dom
-react-router-dom
-npm install @heroui/react framer-motion tailwindcss-animate # animation and UI
-npm install -D tailwindcss @tailwindcss/vite
-npm install -D @vitejs/plugin-react
