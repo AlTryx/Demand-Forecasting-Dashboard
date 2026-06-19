@@ -1,12 +1,11 @@
 "use client"
 
 import Image from "next/image"
-import React, { useState, type ElementType } from "react"
+import React, { useState, useEffect, useCallback, type ElementType } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { LineChart, PieChart, ShieldCheck } from "lucide-react"
+import { ChevronLeft, ChevronRight, LineChart, PieChart, ShieldCheck } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { Reveal } from "./reveal"
 
@@ -54,20 +53,43 @@ const FEATURES: Feature[] = [
   },
 ]
 
+const AUTO_INTERVAL = 5000
+
+const textVariants = {
+  enter: (dir: number) => ({ x: dir * 48, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (dir: number) => ({ x: -dir * 48, opacity: 0 }),
+}
+
 export function FeatureSlider() {
   const [activeIndex, setActiveIndex] = useState(0)
+  const [direction, setDirection] = useState(1)
+  const count = FEATURES.length
   const active = FEATURES[activeIndex]
+
+  const navigate = useCallback((index: number, dir: number) => {
+    setDirection(dir)
+    setActiveIndex(index)
+  }, [])
+
+  const goNext = useCallback(() => {
+    navigate((activeIndex + 1) % count, 1)
+  }, [activeIndex, count, navigate])
+
+  const goPrev = useCallback(() => {
+    navigate((activeIndex - 1 + count) % count, -1)
+  }, [activeIndex, count, navigate])
+
+  // Auto-advance — restarts on every navigation (manual or timer)
+  useEffect(() => {
+    const id = setTimeout(goNext, AUTO_INTERVAL)
+    return () => clearTimeout(id)
+  }, [goNext])
 
   return (
     <section id="features" className="py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-4">
         <Reveal className="mb-14 flex flex-col items-center gap-4 text-center">
-          <Badge
-            variant="outline"
-            className="border-primary/30 bg-primary/5 text-primary"
-          >
-            Platform
-          </Badge>
           <h2 className="max-w-2xl text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
             Everything you need to forecast with confidence
           </h2>
@@ -77,9 +99,28 @@ export function FeatureSlider() {
           </p>
         </Reveal>
 
-        {/* Browser-style preview frame. The screenshots are 1440x900 (16:10),
-            so the content area uses that exact ratio to avoid any cropping. */}
+        {/* Browser frame + side arrows */}
         <Reveal delay={0.1} className="relative mx-auto max-w-5xl">
+          {/* Left arrow */}
+          <button
+            type="button"
+            onClick={goPrev}
+            aria-label="Previous feature"
+            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 flex size-9 items-center justify-center rounded-full border border-border bg-background/90 shadow-md backdrop-blur-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+
+          {/* Right arrow */}
+          <button
+            type="button"
+            onClick={goNext}
+            aria-label="Next feature"
+            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 flex size-9 items-center justify-center rounded-full border border-border bg-background/90 shadow-md backdrop-blur-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+
           <div className="overflow-hidden rounded-xl border border-border bg-card shadow-2xl shadow-primary/10">
             {/* Chrome bar */}
             <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-4 py-3">
@@ -89,9 +130,18 @@ export function FeatureSlider() {
                 <span className="size-3 rounded-full bg-accent/70" />
               </span>
               <div className="ml-3 flex min-w-0 flex-1 items-center justify-center">
-                <span className="truncate rounded-md bg-background px-3 py-1 font-mono text-xs text-muted-foreground">
-                  app.demandforecasting.ai{active.path}
-                </span>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={active.path}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.2 }}
+                    className="truncate rounded-md bg-background px-3 py-1 font-mono text-xs text-muted-foreground"
+                  >
+                    app.demandforecasting.ai{active.path}
+                  </motion.span>
+                </AnimatePresence>
               </div>
             </div>
 
@@ -120,56 +170,58 @@ export function FeatureSlider() {
           </div>
         </Reveal>
 
-        {/* Feature triggers */}
-        <Reveal
-          delay={0.15}
-          className="mx-auto mt-8 flex max-w-5xl flex-col md:flex-row"
-        >
-          <div
-            className="flex w-full flex-col md:flex-row"
-            onMouseLeave={() => setActiveIndex(0)}
-          >
-            {FEATURES.map((feature, index) => {
-              const isActive = activeIndex === index
-              return (
-                <React.Fragment key={feature.title}>
-                  {index > 0 && (
-                    <Separator
-                      orientation="vertical"
-                      className="mx-4 hidden h-auto w-px bg-border md:block"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex grow basis-0 cursor-pointer flex-col rounded-lg p-4 text-left transition-colors",
-                      isActive ? "bg-primary/5" : "hover:bg-muted/60",
-                    )}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    onFocus={() => setActiveIndex(index)}
-                    onClick={() => setActiveIndex(index)}
-                    aria-pressed={isActive}
-                  >
-                    <div
-                      className={cn(
-                        "mb-4 flex size-10 items-center justify-center rounded-full border transition-colors",
-                        isActive
-                          ? "border-primary/30 bg-primary/10 text-primary"
-                          : "border-border bg-card text-muted-foreground",
-                      )}
-                    >
-                      <feature.icon className="size-5" />
-                    </div>
-                    <h3 className="mb-1.5 font-semibold tracking-tight text-foreground">
-                      {feature.title}
-                    </h3>
-                    <p className="text-pretty text-sm text-muted-foreground">
-                      {feature.description}
-                    </p>
-                  </button>
-                </React.Fragment>
-              )
-            })}
+        {/* Animated feature text + progress dots */}
+        <Reveal delay={0.15} className="mx-auto mt-10 max-w-3xl">
+          {/* Text panel — fixed height prevents layout shift */}
+          <div className="relative flex min-h-[130px] items-center justify-center overflow-hidden">
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={activeIndex}
+                custom={direction}
+                variants={textVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="flex flex-col items-center gap-3 px-6 text-center"
+              >
+                <div className="flex size-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                  <active.icon className="size-5" />
+                </div>
+                <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                  {active.title}
+                </h3>
+                <p className="max-w-md text-pretty text-sm text-muted-foreground">
+                  {active.description}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Progress dot indicators */}
+          <div className="mt-6 flex items-center justify-center gap-2">
+            {FEATURES.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => navigate(i, i > activeIndex ? 1 : -1)}
+                aria-label={`Go to ${FEATURES[i].title}`}
+                className={cn(
+                  "relative h-1.5 overflow-hidden rounded-full bg-border transition-all duration-300",
+                  i === activeIndex ? "w-8" : "w-2",
+                )}
+              >
+                {i === activeIndex && (
+                  <motion.div
+                    key={activeIndex}
+                    className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                    initial={{ width: "0%" }}
+                    animate={{ width: "100%" }}
+                    transition={{ duration: AUTO_INTERVAL / 1000, ease: "linear" }}
+                  />
+                )}
+              </button>
+            ))}
           </div>
         </Reveal>
       </div>
