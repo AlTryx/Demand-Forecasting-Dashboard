@@ -9,7 +9,7 @@ from .models import ForecastResult
 from sklearn.metrics import mean_absolute_error
 from rest_framework.exceptions import NotFound, ValidationError
 from apps.products.models import Product
-from apps.business.models import Business
+from apps.businesses.models import Business
 from apps.products.services import ProductService
 from django.db.models.functions import TruncDate
 

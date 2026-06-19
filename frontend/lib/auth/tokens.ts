@@ -1,9 +1,3 @@
-/**
- * Single source of truth for auth token storage.
- *
- * Centralizing the storage keys here fixes the previous bug where different
- * components read/wrote inconsistent keys ("token" vs "access_token").
- */
 export const ACCESS_TOKEN_KEY = "access_token"
 export const REFRESH_TOKEN_KEY = "refresh_token"
 
