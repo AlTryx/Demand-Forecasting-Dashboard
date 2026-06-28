@@ -7,5 +7,4 @@ class HasActiveBusiness(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
 
-        has_business = request.user.businessuser_set.exists()
-        return has_business
+        return request.user.businessuser_set.filter(is_active=True).exists()

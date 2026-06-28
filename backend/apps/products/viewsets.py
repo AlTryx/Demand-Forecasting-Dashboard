@@ -10,9 +10,9 @@ class ProductViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, HasActiveBusiness]
 
     def get_business(self, request):
-        business_user = request.user.businessuser_set.first()
+        business_user = request.user.businessuser_set.filter(is_active=True).first()
         if not business_user:
-            raise ValueError("User has no business")
+            raise ValueError("User has no active business")
         return business_user.business
 
     def paginate_and_respond(self, queryset):

@@ -1,7 +1,7 @@
 from django.db.models import F, Case, When, Value, CharField, Subquery, OuterRef, Sum, PositiveIntegerField
 from django.db.models.functions import Greatest
 from .models import Inventory
-from forecasting.models import ForecastResult
+from ..forecasting.models import ForecastResult
 
 class InventoryService:
     @staticmethod

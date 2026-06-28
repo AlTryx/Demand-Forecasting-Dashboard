@@ -10,7 +10,8 @@ class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return self.inventory_service.get_annotated_inventory_list(business=self.request.user.business)
+        business_user = self.request.user.businessuser_set.filter(is_active=True).first()
+        return self.inventory_service.get_annotated_inventory_list(business=business_user.business)
 
     def retrieve(self, request, pk=None):
         inventory = self.get_object()

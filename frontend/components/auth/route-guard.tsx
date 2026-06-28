@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useEffect, type ReactNode } from "react"
 import { useAuth } from "@/lib/auth/auth-context"
+import { useBusinessContext } from "@/lib/context/business-context"
 
 function FullScreenLoader() {
   return (
@@ -30,6 +31,26 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (!ready || !isAuthenticated) {
     return <FullScreenLoader />
   }
+
+  return <>{children}</>
+}
+
+/**
+ * Requires the user to have an active business.
+ * Redirects to /onboarding if authenticated but no business is selected.
+ * Must be nested inside RequireAuth so isAuthenticated is guaranteed true.
+ */
+export function RequireBusiness({ children }: { children: ReactNode }) {
+  const { hasBusiness, loadingBusiness } = useBusinessContext()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loadingBusiness && !hasBusiness) {
+      router.replace("/onboarding")
+    }
+  }, [loadingBusiness, hasBusiness, router])
+
+  if (loadingBusiness || !hasBusiness) return <FullScreenLoader />
 
   return <>{children}</>
 }
