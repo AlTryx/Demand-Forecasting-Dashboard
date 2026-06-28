@@ -7,6 +7,7 @@ class Product(TimeStampedModel):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     current_stock = models.IntegerField()
     business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE)
+    stock_keeping_unit = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         constraints = [

@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { products } from "@/lib/forecast-data"
+import { BusinessInfoCard } from "./business-info-card"
 import {
   DEFAULT_SETTINGS,
   SettingsDialog,
@@ -190,6 +191,8 @@ export function Sidebar({ selected, onSelect, isOpen, onClose }: SidebarProps) {
             </ul>
           </div>
         </nav>
+
+        <BusinessInfoCard collapsed={collapsed} />
 
         {/* Model health footer */}
         <div className="border-t border-sidebar-border px-3 py-4">

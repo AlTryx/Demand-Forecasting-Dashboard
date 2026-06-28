@@ -15,19 +15,17 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
-from apps.users.viewsets import UserViewSet
+from django.urls import include, path
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/user/', include("apps.users.urls")),
-    path('api/forecasting/', include ("apps.forecasting.urls")),
-    path('api/sales/', include ("apps.sales.urls")),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    # path('api/profile/', UserProfileView.as_view(), name='user_profile')
+    path("admin/", admin.site.urls),
+    path("api/user/", include("apps.users.urls")),
+    path("api/businesses/", include("apps.businesses.urls")),
+    path("api/products/", include("apps.products.urls")),
+    path("api/inventory/", include("apps.inventory.urls")),
+    path("api/forecasting/", include("apps.forecasting.urls")),
+    path("api/sales/", include("apps.sales.urls")),
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 ]

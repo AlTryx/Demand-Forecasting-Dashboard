@@ -1,10 +1,12 @@
 import { Dashboard } from "@/components/dashboard/dashboard"
-import { RequireAuth } from "@/components/auth/route-guard"
+import { RequireAuth, RequireBusiness } from "@/components/auth/route-guard"
 
 export default function DashboardPage() {
   return (
     <RequireAuth>
-      <Dashboard />
+      <RequireBusiness>
+        <Dashboard />
+      </RequireBusiness>
     </RequireAuth>
   )
 }
