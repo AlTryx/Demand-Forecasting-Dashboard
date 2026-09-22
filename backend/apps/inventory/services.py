@@ -8,7 +8,7 @@ class InventoryService:
     def _get_latest_forecast_subquery():
         return ForecastResult.objects.filter(
             product_id=OuterRef('product_id'),
-            horizon=ForecastResult.HORIZON.ONE_WEEK
+            horizon=ForecastResult.HorizonOptions.ONE_WEEK
         ).order_by('-generated_at').values('predicted_quantity')[:1]
 
     @staticmethod
@@ -16,7 +16,7 @@ class InventoryService:
         latest_forecast_subquery = cls._get_latest_forecast_subquery()
 
         return Inventory.objects.filter(product__business=business).annotate(
-            forecast_demand=latest_forecast_subquery,
+            forecast_demanded=latest_forecast_subquery,
 
             computed_reorder_quantity=Greatest(
                 Value(0),
@@ -43,9 +43,9 @@ class InventoryService:
         capital_aggregation = annotated_inventory_list.aggregate(
             total_capital_sum=Sum(F('computed_reorder_quantity') * F('product__price'))
         )
-        total_capital_required = capital_aggregation['total_capital_required'] or 0
+        total_capital_required = capital_aggregation['total_capital_sum'] or 0
 
         return {
-            stockouts_at_risk_count: stockouts_at_risk_count,
+            'stockouts_at_risk_count': stockouts_at_risk_count,
             'total_capital_required': total_capital_required,
         }
