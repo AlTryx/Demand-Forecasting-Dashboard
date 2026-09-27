@@ -12,8 +12,8 @@ class InventoryService:
         ).order_by('-generated_at').values('predicted_quantity')[:1]
 
     @staticmethod
-    def get_annotated_inventory_list(cls, business):
-        latest_forecast_subquery = cls._get_latest_forecast_subquery()
+    def get_annotated_inventory_list(business):
+        latest_forecast_subquery = InventoryService._get_latest_forecast_subquery()
 
         return Inventory.objects.filter(product__business=business).annotate(
             forecast_demanded=latest_forecast_subquery,
@@ -36,7 +36,7 @@ class InventoryService:
 
     @classmethod
     def get_dashboard_cards_overview(cls, business):
-        annotated_inventory_list = cls.get_annotated_inventory_list(cls, business)
+        annotated_inventory_list = cls.get_annotated_inventory_list(business)
 
         stockouts_at_risk_count = annotated_inventory_list.filter(computed_status="STOCKOUT_RISK").count()
 
