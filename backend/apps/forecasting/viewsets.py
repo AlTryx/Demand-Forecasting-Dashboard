@@ -13,7 +13,7 @@ class ForecastingViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = ForecastResult.objects.all()
 
     def get_business(self, request):
-        business_user = request.user.businessuser_set.first()
+        business_user = request.user.businessuser_set.filter(is_active=True).first()
         if not business_user:
             raise ValueError("User has no business")
         return business_user.business

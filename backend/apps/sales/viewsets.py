@@ -9,7 +9,7 @@ class SalesViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_business(self, request):
-        business_user = request.user.businessuser_set.first()
+        business_user = request.user.businessuser_set.filter(is_active=True).first()
         if not business_user:
             raise ValidationError({"detail": "User has no business assigned."})
         return business_user.business
