@@ -19,6 +19,7 @@ class User(AbstractUser, TimeStampedModel):
     email = models.EmailField(unique=True, blank=False)
     first_name = models.CharField(max_length=30, blank=False)
     last_name = models.CharField(max_length=30, blank=False)
+    active_business = models.ForeignKey('businesses.Business', on_delete=models.SET_NULL, null=True, blank=True)
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
     USERNAME_FIELD = "username"
@@ -32,10 +33,17 @@ class BusinessUser(TimeStampedModel):
         MANAGER = "manager", "Manager"
         OWNER = "owner", "Owner"
         EMPLOYEE = "employee", "Employee"
+    
+    class Statuses(models.TextChoices):
+        INVITED = "invited", "Invited"
+        ACTIVE = "active", "Active"
+        SUSPENDED = "suspended", "Suspended"
+        REMOVED = "removed", "Removed"
 
     user = models.ForeignKey('users.User', on_delete=models.CASCADE)
     business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE)
     role = models.CharField(max_length=30, choices=Roles.choices, default=Roles.EMPLOYEE)
+    status = models.CharField(max_length=30, choices=Statuses.choices, default=Statuses.INVITED)
     is_active = models.BooleanField(default=True)
 
     class Meta:
