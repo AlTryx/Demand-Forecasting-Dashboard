@@ -16,7 +16,7 @@ class InventoryService:
         latest_forecast_subquery = InventoryService._get_latest_forecast_subquery()
 
         return Inventory.objects.filter(product__business=business).annotate(
-            forecast_demanded=latest_forecast_subquery,
+            forecasted_demand=latest_forecast_subquery,
 
             computed_reorder_quantity=Greatest(
                 Value(0),
