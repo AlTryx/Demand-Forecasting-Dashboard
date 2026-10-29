@@ -12,6 +12,8 @@ class ForecastResultSerializer(serializers.ModelSerializer):
             'id',
             'product',
             'predicted_quantity',
+            'lower_bound',
+            'upper_bound',
             'horizon',
             'horizon_display',
             'confidence_score',

@@ -13,7 +13,8 @@ drf-spectacular
 #CSV
 pandas
 #ML
-scikit-learn 
+lightgbm
+scikit-learn
 numpy
 
 #postgresql

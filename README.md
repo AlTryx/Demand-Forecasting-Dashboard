@@ -16,7 +16,7 @@ run out.
 ```
 Sales happen        →  Order + OrderLine rows accumulate
                               ↓
-RandomForest trains on weekly per-product aggregates
+LightGBM trains on complete weeks of per-product sales
                               ↓
 ForecastResult      →  predicted units for the next 7 days
                               ↓
@@ -31,7 +31,7 @@ EvaluationMetric    →  was the forecast actually right?
 | ---------- | ----------------------------------------------------------------- |
 | Backend    | Django 6.0, Django REST Framework, SimpleJWT                      |
 | Database   | PostgreSQL 16 (Docker, port **5433**)                             |
-| ML         | scikit-learn `RandomForestRegressor`, pandas, numpy               |
+| ML         | LightGBM (quantile regression), pandas, numpy                     |
 | Frontend   | Next.js 16 (App Router), React 19, TypeScript                     |
 | Styling/UI | Tailwind CSS v4, Recharts, Framer Motion, lucide-react            |
 | Package mgr| `pip` (backend), `pnpm` (frontend)                                |
@@ -129,7 +129,7 @@ Demand-Forecasting-Dashboard/
 │       ├── businesses/      Business
 │       ├── products/        Product, StockLog (append-only stock ledger)
 │       ├── sales/           Order, OrderLine, checkout, seed command
-│       ├── forecasting/     ForecastResult + the RandomForest pipeline
+│       ├── forecasting/     ForecastResult + the LightGBM pipeline (ml.py)
 │       ├── inventory/       Inventory read-model for the dashboard
 │       └── analytics/       EvaluationMetric (forecast accuracy scorecard)
 └── frontend/
@@ -188,6 +188,50 @@ added to `INSTALLED_APPS`, so there is no `/api/docs/` route.
 
 ---
 
+## Forecasting model
+
+`apps/forecasting/ml.py` holds the whole model and has no Django imports;
+`ForecastingService.run_prediction_pipeline()` only moves data between the
+database and it.
+
+- **Weekly, one week ahead.** Daily sales are summed into complete
+  Monday–Sunday weeks. The current, unfinished week is left out, and weeks
+  without sales count as 0.
+- **One LightGBM model for all products.** It learns from sales divided by
+  each product's mean over the previous 8 weeks, so slow and fast sellers (and
+  different businesses) share one model. Features: lags of 1–4 and 52 weeks,
+  4- and 12-week rolling mean and spread, week of year, month.
+- **Three quantiles.** The 50th percentile is the forecast; the 10th and
+  90th give the 80% interval stored in `lower_bound` / `upper_bound`.
+- **Confidence** is `1 − WAPE` for that product over the last 8 held-out
+  weeks, clipped to 0–1.
+- **Fallback.** Products with under 4 weeks of history, or every product
+  when there is too little data to validate the model, get the mean of their
+  last weeks, no interval and confidence 0.
+
+### Accuracy
+
+Backtest: trained on everything before the last 8 weeks, then each of those
+weeks predicted one week ahead. WAPE = total absolute error / total units sold
+(lower is better).
+
+| Data                                   | LightGBM | Old RandomForest | Same as last week |
+| -------------------------------------- | -------- | ---------------- | ----------------- |
+| Kaggle, 3 stores × 20 items (seeder)   | **5.0%** | 7.8%             | 8.5%              |
+| Kaggle, all 10 stores × 50 items       | **5.2%** | 7.5%             | 8.8%              |
+| Same 60 series thinned to ~12 units/week | **25.3%** | —              | 34.1%             |
+
+80% interval coverage on the seeder subset is 72%, so the intervals are a
+little too narrow. The Kaggle data is synthetic and very regular; expect real
+shops to land nearer the thinned row. Reproduce with:
+
+```bash
+python manage.py evaluate_forecast --csv dataset/train.csv --stores 3 --items 20
+python manage.py evaluate_forecast          # on the sales in the database
+```
+
+---
+
 ## Current status
 
 | Area                                             | Status                          |
@@ -199,9 +243,9 @@ added to `INSTALLED_APPS`, so there is no `/api/docs/` route.
 | Dashboard UI                                      | ⚠️ renders on hardcoded mock data (`lib/forecast-data.ts`) |
 | Product endpoints                                 | ❌ broken (see below)           |
 | Inventory endpoints                               | ❌ broken, and no rows are ever created |
-| ML pipeline                                       | ⚠️ implemented but never invoked |
+| ML pipeline                                       | ⚠️ tested, but nothing calls it yet |
 | Analytics / `EvaluationMetric`                    | ❌ model only, no API           |
-| Tests                                             | ❌ none                         |
+| Tests                                             | ⚠️ forecasting + one product test only |
 | OIDC / Google sign-in                             | ❌ scaffolding only             |
 | Frontend token refresh                            | ❌ written but never called     |
 | CI, Dockerfile, docker-compose                    | ❌ none                         |
@@ -217,7 +261,8 @@ added to `INSTALLED_APPS`, so there is no `/api/docs/` route.
    `@staticmethod` that takes a `cls` argument. Nothing creates `Inventory`
    rows in the first place.
 3. **The ML pipeline is never triggered.** `run_prediction_pipeline()` has no
-   caller — no scheduler, no management command, no endpoint.
+   caller — no scheduler, no management command, no endpoint. Reruns also add
+   a second forecast per product instead of replacing it.
 4. **Migration drift.** `Product.stock_keeping_unit` has no migration, and
    `Inventory.status` is still a column in the database after becoming a Python
    property. Run `python manage.py makemigrations` to generate both.
