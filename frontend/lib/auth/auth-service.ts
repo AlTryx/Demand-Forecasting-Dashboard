@@ -37,6 +37,11 @@ export function refreshAccessToken(refresh: string) {
   })
 }
 
+/** GET /api/user/me/ — return the current signed-in user profile. */
+export function getCurrentUser(token: string) {
+  return apiFetch<UserProfile>("/api/user/me/", { token })
+}
+
 /** POST /api/user/registration/ — create a new account. */
 export function register(payload: RegisterPayload) {
   return apiFetch("/api/user/registration/", {
