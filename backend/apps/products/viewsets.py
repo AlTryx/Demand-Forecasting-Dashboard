@@ -2,17 +2,18 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from .serializers import ProductSerializer
 from .services import ProductService
 from .permissions import HasActiveBusiness
 
-class ProductViewSet(viewsets.ViewSet):
+class ProductViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated, HasActiveBusiness]
 
     def get_business(self, request):
         business_user = request.user.businessuser_set.filter(is_active=True).first()
         if not business_user:
-            raise ValueError("User has no active business")
+            raise PermissionDenied("User has no active business")
         return business_user.business
 
     def paginate_and_respond(self, queryset):
@@ -39,7 +40,7 @@ class ProductViewSet(viewsets.ViewSet):
 
         business = self.get_business(request)
 
-        serializer = ProductSerializer(data=request.data)
+        serializer = ProductSerializer(data=request.data, context={"business": business})
         if serializer.is_valid():
             product = service.create_product(
                 business=business,
