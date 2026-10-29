@@ -1,17 +1,21 @@
-import datetime
+import logging
+from decimal import Decimal
+
 import pandas as pd
-import numpy as np
 from django.db import transaction
 from django.db.models import Sum
-from sklearn.ensemble import RandomForestRegressor
-from apps.sales.models import Order, OrderLine
-from .models import ForecastResult
-from sklearn.metrics import mean_absolute_error
-from rest_framework.exceptions import NotFound, ValidationError
-from apps.products.models import Product
-from apps.businesses.models import Business
-from apps.products.services import ProductService
 from django.db.models.functions import TruncDate
+from django.utils import timezone
+from rest_framework.exceptions import NotFound
+
+from apps.businesses.models import Business
+from apps.products.models import Product
+from apps.sales.models import OrderLine
+from . import ml
+from .models import ForecastResult
+
+logger = logging.getLogger(__name__)
+
 
 class ForecastingService:
     def get_latest_forecast_for_product(self, business, product_id):
@@ -29,140 +33,47 @@ class ForecastingService:
         return ForecastResult.objects.filter(product__business=business).order_by('-created_at')[:100]
 
     @classmethod
-    def run_prediction_pipeline(cls):
-        df_raw = cls._fetch_sales_data()
-        if df_raw.empty or len(df_raw) < 1000:
-            print("ML - Insufficient data footprint")
+    def run_prediction_pipeline(cls, as_of=None):
+        daily = cls._fetch_sales_data()
+        output = ml.forecast(daily, as_of=as_of or timezone.localdate())
+
+        if output.predictions.empty:
+            logger.warning("No complete week of sales found; nothing to forecast")
             return False
 
-        weekly_df = cls._prepare_features(df_raw)
+        if output.report is None:
+            logger.warning("Too little sales history to validate the model; every product gets the naive fallback")
+        else:
+            logger.info(output.report.summary())
 
-        x_train, y_train, x_test, y_test = cls._prepare_train_test_split(weekly_df)
-        model = cls._train_model(x_train, y_train)
-
-        confidence_decimal = cls._evaluate_model(model, x_test, y_test)
-        print(f"ML Engine accuracy: {confidence_decimal * 100:.2f}%")
-
-        predictions = cls._generate_predictions(weekly_df, model, confidence_decimal)
-
-        if predictions:
-            cls._save_predictions(predictions)
+        cls._save_predictions(output.predictions)
         return True
 
     @staticmethod
     def _fetch_sales_data():
-        print("ML - Fetching transactional history")
-
-        sales_qs = OrderLine.objects.annotate(
-            date=TruncDate('order__created_at')
-        ).values('product_id', 'date').annotate(
-            quantity_sold=Sum('quantity_sold')
-        ).order_by('product_id', 'date')
-
-        return pd.DataFrame(list(sales_qs))
-
-    @staticmethod
-    def _prepare_features(df):
-        df['date'] = pd.to_datetime(df['date'])
-        df['week_start'] = df['date'].dt.to_period('W').dt.start_time
-
-        weekly_df = df.groupby(['product_id', 'week_start'])['quantity_sold'].sum().reset_index()
-        weekly_df = weekly_df.sort_values(by=['product_id', 'week_start']).reset_index(drop=True)
-
-        weekly_df['month'] = weekly_df['week_start'].dt.month
-
-        grouped = weekly_df.groupby('product_id')['quantity_sold']
-        weekly_df['lag_1_week'] = grouped.shift(1)
-        weekly_df['lag_2_weeks'] = grouped.shift(2)
-        weekly_df['lag_4_weeks'] = grouped.shift(4)
-        weekly_df['rolling_mean_4'] = grouped.shift(1).rolling(window=4).mean()
-
-        return weekly_df
+        sales_qs = (
+            OrderLine.objects.filter(product__isnull=False)
+            .annotate(date=TruncDate('order__created_at'))
+            .values('product_id', 'date')
+            .annotate(quantity=Sum('quantity_sold'))
+            .order_by('product_id', 'date')
+        )
+        daily = pd.DataFrame(list(sales_qs), columns=['product_id', 'date', 'quantity'])
+        return daily.rename(columns={'product_id': 'series_id'})
 
     @staticmethod
-    def _get_feature_cols():
-        return ['month', 'lag_1_week', 'lag_2_weeks', 'lag_4_weeks', 'rolling_mean_4']
-
-    @classmethod
-    def _prepare_train_test_split(cls, weekly_df):
-        # Drop cold-start rows that don't have enough history to calculate lag structures
-        train_matrix = weekly_df.dropna().reset_index(drop=True)
-        unique_weeks = sorted(train_matrix['week_start'].unique())
-
-        split_index = int(len(unique_weeks) * 0.80)
-        split_date = unique_weeks[split_index]
-
-        train_df = train_matrix[train_matrix['week_start'] <= split_date]
-        test_df = train_matrix[train_matrix['week_start'] > split_date]
-
-        feature_columns = cls._get_feature_cols()
-
-        x_train = train_df[feature_columns]
-        y_train = train_df['quantity_sold']
-        x_test = test_df[feature_columns]
-        y_test = test_df['quantity_sold']
-
-        return x_train, y_train, x_test, y_test
-
-    @staticmethod
-    def _train_model(x_train, y_train):
-        print("ML - Fitting RandomForestRegressor")
-        model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
-        model.fit(x_train, y_train)
-        return model
-
-    @classmethod
-    def _evaluate_model(cls, model, x_test, y_test):
-        predictions = model.predict(x_test)
-
-        #Calculate WAPE (Weighted Absolute Percentage Error)
-        total_absolute_error = np.sum(np.abs(y_test - predictions))
-        total_actual_volume = np.sum(y_test)
-
-        wape_error_rate = total_absolute_error / total_actual_volume if total_actual_volume > 0 else 0
-        true_weighted_accuracy = (1 - wape_error_rate) * 100
-        return round(true_weighted_accuracy / 100, 4)
-
-    @classmethod
-    def _generate_predictions(cls, weekly_df, model, confidence_decimal):
-        product_service = ProductService()
-        print("Saving predictions into ForecastResult model in DB")
-        latest_week = weekly_df['week_start'].max()
-        next_week = latest_week + datetime.timedelta(weeks=1)
-
-        products = product_service.get_all_active_products_for_system()
-        feature_cols = cls._get_feature_cols()
-        forecast_instances = []
-
-        for product in products:
-            p_history = weekly_df[weekly_df['product_id'] == product.id].sort_values('week_start')
-            if len(p_history) < 4:
-                continue
-
-            input_vector = pd.DataFrame([{
-                'month': next_week.month,
-                'lag_1_week': p_history.iloc[-1]['quantity_sold'],
-                'lag_2_weeks': p_history.iloc[-2]['quantity_sold'],
-                'lag_4_weeks': p_history.iloc[-4]['quantity_sold'],
-                'rolling_mean_4': p_history.tail(4)['quantity_sold'].mean()
-            }])
-
-            predicted_float = model.predict(input_vector[feature_cols])[0]
-            predicted_units = max(0, int(round(predicted_float)))
-
-            forecast_instances.append(
-                ForecastResult(
-                    product=product,
-                    predicted_quantity=predicted_units,
-                    horizon=ForecastResult.HorizonOptions.ONE_WEEK,
-                    confidence_score=confidence_decimal
-                )
+    def _save_predictions(predictions):
+        forecasts = [
+            ForecastResult(
+                product_id=int(row.series_id),
+                predicted_quantity=round(row.predicted),
+                lower_bound=None if pd.isna(row.lower) else round(row.lower),
+                upper_bound=None if pd.isna(row.upper) else round(row.upper),
+                horizon=ForecastResult.HorizonOptions.ONE_WEEK,
+                confidence_score=Decimal(str(round(row.confidence, 4))),
             )
-        return forecast_instances
-
-    @staticmethod
-    def _save_predictions(forecast_instances):
+            for row in predictions.itertuples()
+        ]
         with transaction.atomic():
-            ForecastResult.objects.bulk_create(forecast_instances)
-        print(f"Saved {len(forecast_instances)} forecasts in DB")
-        return
+            ForecastResult.objects.bulk_create(forecasts)
+        logger.info("Saved %d forecasts", len(forecasts))
