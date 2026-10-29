@@ -1,12 +1,10 @@
 import type { ComponentType } from "react"
-import { Clock, Gauge, Info, LayoutGrid, PackageCheck } from "lucide-react"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import type { ProductContext } from "@/lib/forecast-data"
+import { CalendarRange, Euro, Gauge } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { ProductRef, SalesSummary } from "@/lib/types/analytics"
+import { formatDate, formatNumber, formatPriceEUR } from "@/lib/format"
+
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 
 type MetricCellProps = {
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>
@@ -23,119 +21,54 @@ function MetricCell({ icon: Icon, label, value, unit }: MetricCellProps) {
         {label}
       </span>
       <span className="flex items-baseline gap-1">
-        <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
-          {value}
-        </span>
-        {unit ? (
-          <span className="text-sm font-medium text-muted-foreground">{unit}</span>
-        ) : null}
+        <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">{value}</span>
+        {unit ? <span className="text-sm font-medium text-muted-foreground">{unit}</span> : null}
       </span>
     </div>
   )
 }
 
-function formatTimestamp(iso: string): string {
-  const date = new Date(iso)
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-    timeZoneName: "short",
-  })
+function weeksBetween(from: string, to: string) {
+  return Math.max(1, (Date.parse(to) - Date.parse(from)) / MS_PER_WEEK + 1 / 7)
 }
 
 type ProductContextPanelProps = {
-  context: ProductContext | null
-  isOverview?: boolean
-  productCount?: number
+  summary: SalesSummary | null
+  product: ProductRef | null
 }
 
-export default function ProductContextPanel({
-  context,
-  isOverview = false,
-  productCount = 0,
-}: ProductContextPanelProps) {
-  if (!context) return null
+export default function ProductContextPanel({ summary, product }: ProductContextPanelProps) {
+  if (!summary?.date_from || !summary.date_to) return null
 
-  // On the Overview tab there is no single "lead time" or "safety stock" that
-  // makes sense across every SKU (e.g. a 40-day China lead time vs a 2-day
-  // local supplier). Show guidance instead of one product's numbers.
-  if (isOverview) {
-    return (
-      <Card>
-        <CardHeader className="border-b border-border">
-          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            ALL-SKUS
-          </span>
-          <CardTitle className="text-base">Inventory Target Profile</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start gap-3 rounded-lg border border-dashed border-border bg-muted px-4 py-5">
-            <LayoutGrid
-              className="mt-0.5 size-5 shrink-0 text-muted-foreground"
-              aria-hidden={true}
-            />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">
-                Lead time and safety stock vary per product
-              </p>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Select one of the {productCount} products in the sidebar to see
-                its individual lead time, storage velocity, and safety stock
-                buffer.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  const weeks = weeksBetween(summary.date_from, summary.date_to)
 
   return (
     <Card>
       <CardHeader className="border-b border-border">
         <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {context.sku}
+          {product ? product.sku ?? `#${product.id}` : `${formatNumber(summary.product_count)} products`}
         </span>
-        <CardTitle className="text-base">
-          Inventory Target Profile: {context.label}
-        </CardTitle>
+        <CardTitle className="text-base">Sales Profile{product ? `: ${product.name}` : ""}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <MetricCell
-            icon={Clock}
-            label="Avg Lead Time"
-            value={context.leadTimeDays}
-            unit="days"
-          />
-          <MetricCell
             icon={Gauge}
-            label="Storage Velocity"
-            value={context.storageVelocity}
-          />
-          <MetricCell
-            icon={PackageCheck}
-            label="Safety Stock"
-            value={context.safetyStock.toLocaleString("en-US")}
+            label="Avg weekly units"
+            value={formatNumber(summary.total_units / weeks)}
             unit="units"
           />
-        </div>
-
-        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted px-4 py-3">
-          <Info
-            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-            aria-hidden={true}
+          <MetricCell
+            icon={Euro}
+            label="Avg unit price"
+            value={summary.avg_unit_price === null ? "—" : formatPriceEUR(summary.avg_unit_price)}
           />
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Inference derived from ML Training Run pipeline on{" "}
-            <span className="font-mono text-foreground">
-              {formatTimestamp(context.generatedAt)}
-            </span>
-          </p>
+          <MetricCell
+            icon={CalendarRange}
+            label="Data range"
+            value={formatNumber(weeks)}
+            unit={`weeks · since ${formatDate(summary.date_from)}`}
+          />
         </div>
       </CardContent>
     </Card>

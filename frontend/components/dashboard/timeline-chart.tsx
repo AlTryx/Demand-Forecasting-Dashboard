@@ -10,11 +10,52 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import type { TimelinePoint } from "@/lib/forecast-data"
-import { formatCurrencyEUR } from "@/lib/forecast-data"
+import type { SalesTimeline } from "@/lib/types/analytics"
+import { formatCompact, formatCurrencyEUR, formatNumber, formatWeekLabel } from "@/lib/format"
+
+type TimelinePoint = {
+  label: string
+  actual: number | null
+  predicted: number | null
+  lower: number | null
+  upper: number | null
+  revenue: number | null
+  isForecast: boolean
+}
 
 type TimelineChartProps = {
-  data: TimelinePoint[]
+  timeline: SalesTimeline | null
+  avgUnitPrice: number | null
+}
+
+function toPoints(timeline: SalesTimeline, avgUnitPrice: number | null): TimelinePoint[] {
+  const points: TimelinePoint[] = timeline.weeks.map((week) => ({
+    label: formatWeekLabel(week.week_start),
+    actual: week.units,
+    predicted: null,
+    lower: null,
+    upper: null,
+    revenue: week.revenue,
+    isForecast: false,
+  }))
+
+  const { forecast } = timeline
+  if (forecast && points.length) {
+    const last = points[points.length - 1]
+    last.predicted = last.actual
+    last.lower = last.actual
+    last.upper = last.actual
+    points.push({
+      label: `${formatWeekLabel(forecast.week_start)} (next)`,
+      actual: null,
+      predicted: forecast.predicted,
+      lower: forecast.lower ?? forecast.predicted,
+      upper: forecast.upper ?? forecast.predicted,
+      revenue: avgUnitPrice === null ? null : forecast.predicted * avgUnitPrice,
+      isForecast: true,
+    })
+  }
+  return points
 }
 
 function ChartTooltip({
@@ -29,8 +70,6 @@ function ChartTooltip({
   if (!active || !payload?.length) return null
   const point = payload[0].payload
   const value = point.isForecast ? point.predicted : point.actual
-  // Estimate price: avg 12.5 EUR/unit for visualization
-  const estimatedValue = (value ?? 0) * 12.5
   return (
     <div className="rounded-lg border border-border bg-popover px-4 py-3 shadow-lg">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
@@ -47,22 +86,29 @@ function ChartTooltip({
       </p>
       <div className="space-y-1">
         <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
-          {(value ?? 0).toLocaleString("en-US")} units
+          {formatNumber(value ?? 0)} units
         </p>
-        <p className="font-mono text-xs tabular-nums text-accent font-medium">
-          ~ {formatCurrencyEUR(estimatedValue)} (est. value)
-        </p>
+        {point.revenue !== null && (
+          <p className="font-mono text-xs tabular-nums text-accent font-medium">
+            {point.isForecast ? "≈ " : ""}
+            {formatCurrencyEUR(point.revenue)}
+            {point.isForecast ? " (est.)" : ""}
+          </p>
+        )}
       </div>
       {point.isForecast && point.lower != null && point.upper != null ? (
         <p className="mt-2 font-mono text-[11px] tabular-nums text-muted-foreground">
-          CI: {point.lower.toLocaleString("en-US")} – {point.upper.toLocaleString("en-US")}
+          Range: {formatNumber(point.lower)} – {formatNumber(point.upper)}
         </p>
       ) : null}
     </div>
   )
 }
 
-export function TimelineChart({ data }: TimelineChartProps) {
+export function TimelineChart({ timeline, avgUnitPrice }: TimelineChartProps) {
+  const data = timeline ? toPoints(timeline, avgUnitPrice) : []
+  const weeks = timeline?.weeks.length ?? 0
+
   return (
     <section className="rounded-xl border border-border bg-card">
       <header className="flex flex-col gap-1 border-b border-border px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
@@ -71,7 +117,9 @@ export function TimelineChart({ data }: TimelineChartProps) {
             Predictive Sales Timeline
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Last 4 weeks actual sales, ending in next week&apos;s forecast
+            {timeline?.forecast
+              ? `Last ${weeks} weeks of sales, ending in next week's forecast`
+              : `Last ${weeks} weeks of sales · run a forecast to see next week`}
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs">
@@ -92,6 +140,9 @@ export function TimelineChart({ data }: TimelineChartProps) {
 
       <div className="px-2 py-6 sm:px-4">
         <div className="h-80 w-full min-h-80 min-w-0">
+          {!timeline ? (
+            <div className="size-full animate-pulse rounded-lg bg-secondary/50" />
+          ) : (
           <ResponsiveContainer width="100%" height="100%" className="focus:outline-none">
             <ComposedChart
               data={data}
@@ -114,6 +165,8 @@ export function TimelineChart({ data }: TimelineChartProps) {
                 axisLine={false}
                 tickLine={false}
                 tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                interval="preserveStartEnd"
+                minTickGap={24}
                 dy={8}
               />
               <YAxis
@@ -121,7 +174,7 @@ export function TimelineChart({ data }: TimelineChartProps) {
                 tickLine={false}
                 width={48}
                 tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
-                tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}k`}
+                tickFormatter={(v: number) => formatCompact(v)}
               />
               <Tooltip
                 content={<ChartTooltip />}
@@ -168,6 +221,7 @@ export function TimelineChart({ data }: TimelineChartProps) {
               />
             </ComposedChart>
           </ResponsiveContainer>
+          )}
         </div>
       </div>
     </section>

@@ -5,6 +5,7 @@ export type Product = {
   price: string
   current_stock: number
   business: number
+  stock_keeping_unit?: string | null
   created_at: string
   updated_at: string
 }
