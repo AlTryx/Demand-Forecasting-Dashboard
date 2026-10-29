@@ -19,6 +19,7 @@ import { ForecastTable } from "./forecast-table"
 import { CommandSearch } from "./command-search"
 import ForecastAnalyticsGrid from "./forecast-analytics-grid"
 import ProductContextPanel from "./product-context-panel"
+import { CsvUploadCard } from "./csv-upload-card"
 
 export function Dashboard() {
   const router = useRouter()
@@ -111,6 +112,7 @@ export function Dashboard() {
               isOverview={selected === "overview"}
               productCount={products.length - 1}
             />
+            <CsvUploadCard />
             <ForecastTable rows={log} />
           </div>
         </main>
