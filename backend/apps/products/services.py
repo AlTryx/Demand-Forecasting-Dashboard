@@ -1,3 +1,5 @@
+from django.db.models import Q
+
 from .models import Product, StockLog
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -53,9 +55,10 @@ class ProductService:
         return Product.objects.filter(business=business)
 
     def search_products_by_name(self, business, query):
-        return Product.objects.filter(
-            business=business,
-            name__icontains=query
+        return (
+            Product.objects.filter(business=business)
+            .filter(Q(name__icontains=query) | Q(stock_keeping_unit__icontains=query))
+            .order_by("name")
         )
 
     def get_low_stock_products(self, business, threshold):

@@ -2,7 +2,7 @@ from django.db import models
 from core.models import TimeStampedModel
 
 class Product(TimeStampedModel):
-    name = models.CharField(max_length=20, blank=False)
+    name = models.CharField(max_length=255, blank=False)
     category = models.CharField(max_length=20, blank=False)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     current_stock = models.IntegerField()
@@ -18,7 +18,11 @@ class Product(TimeStampedModel):
             models.CheckConstraint(
                 condition=models.Q(price__gte=0),
                 name='price_gte_0'
-            )
+            ),
+            models.UniqueConstraint(
+                fields=['business', 'name'],
+                name='product_business_name_uniq'
+            ),
         ]
 
 class StockLog(models.Model):

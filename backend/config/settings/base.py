@@ -126,6 +126,9 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
+SALES_IMPORT_MAX_BYTES = 200 * 1024 * 1024
+SALES_IMPORT_DIR = BASE_DIR.parent / "var" / "imports"
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),

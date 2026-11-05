@@ -6,6 +6,39 @@ name here, change it there too.
 
 Estimated size: ~600 lines of app code + ~250 lines of tests.
 
+## Status: implemented 2026-11-05
+
+| # | Step | Size | What it unlocks in the UI | Done |
+|---|---|---|---|---|
+| 1 | Product fixes: `name` 255 + unique per business, SKU in serializer, search by SKU | ~15 lines + migration | SKUs in search, long names import | [x] |
+| 2 | `DailySales` model | ~20 lines + migration | – | [x] |
+| 3 | `ImportJob` model + serializer | ~35 lines + migration | – | [x] |
+| 4 | `SalesImportService` (chunked pandas, upsert) + tests 1–6 | ~180 lines + ~120 test | – | [x] |
+| 5 | Upload endpoint, router, settings, `var/` in .gitignore | ~70 lines | Upload card works end to end | [x] |
+| 6 | Analytics app: service, 3 views, urls, `config/urls.py` | ~200 lines + ~80 test | Whole dashboard shows real data | [x] |
+| 7 | Forecasting: `week_start` field, `run_for_business`, `run` action, serializer fields, `select_related` | ~60 lines + migration | Run forecast button, forecast table, volatility list | [x] |
+| 8 | Remaining tests (endpoint 7–9) | ~50 lines | – | [x] |
+
+Where the code differs from the examples below:
+- Query result names can't match model fields in Django (`annotate(units=Sum("units"))` raises), so the code uses `total_units`, `product_units`, `week_units` and so on.
+- `stock_keeping_unit` existed on `Product` but had no migration and no DB column; migration `products/0003` adds it.
+- The CSV is read with `keep_default_na=False`, so a product named "NA" or "null" stays a name.
+- Error lines are reported as file line numbers (`Line 2` = first data row), matching the frontend preview.
+- Jobs stuck in `pending`/`running` for over an hour are marked failed on the next upload.
+- `get_active_business` lives in `core/utils.py`.
+- `SALES_IMPORT_DIR` is `BASE_DIR.parent / "var" / "imports"`, because `BASE_DIR` points at `backend/config`.
+
+Measured locally: 913k rows / 500 products (35 MB) import in 36 s; summary 0.1 s, all-time top products 0.6 s, the rest under 20 ms; forecast run 7 s.
+
+Milestones to check in the browser:
+- After step 5: uploading `sales_example.csv` shows "Import finished · 3,650 rows written".
+- After step 6: the KPIs, timeline, donut and sidebar fill in.
+- After step 7: "Run forecast" adds a dashed forecast point to the timeline.
+
+Local setup: the DB is the Docker container `demand-postgres` on port 5433
+(`.env` → `PORT = '5433'`). Start Docker Desktop first, then
+`docker start demand-postgres`.
+
 ## Endpoints the frontend calls
 
 | Method | URL | Response type (analytics.ts) | Step |
