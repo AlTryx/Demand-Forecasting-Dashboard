@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from .serializers import ProductSerializer
 from .services import ProductService
 from .permissions import HasActiveBusiness
+from .models import StockLog
 
 class ProductViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated, HasActiveBusiness]
@@ -161,13 +162,32 @@ class ProductViewSet(viewsets.GenericViewSet):
         business = self.get_business(request)
 
         amount = request.data.get("amount")
+        reason = request.data.get("reason")
+
         if amount is None:
             return Response(
                 {"error": "Amount is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        product = service.decrease_stock(pk, business, int(amount))
+        if reason is None:
+            return Response(
+                {"error": "Reason is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            amount = int(amount)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Amount must be a valid integer"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            product = service.decrease_stock(pk, business, amount, reason)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(product)
         return Response(serializer.data)
@@ -179,13 +199,32 @@ class ProductViewSet(viewsets.GenericViewSet):
         business = self.get_business(request)
 
         amount = request.data.get("amount")
+        reason = request.data.get("reason")
+
         if amount is None:
             return Response(
                 {"error": "Amount is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        product = service.increase_stock(pk, business, int(amount))
+        if reason is None:
+            return Response(
+                {"error": "Reason is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            amount = int(amount)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Amount must be a valid integer"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            product = service.increase_stock(pk, business, amount, reason)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(product)
         return Response(serializer.data)
