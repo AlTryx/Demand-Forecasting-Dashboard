@@ -42,18 +42,18 @@ export function getOutOfStockProducts(token: string) {
   return apiFetch<PaginatedResponse<Product>>("/api/products/out_of_stock/", { token })
 }
 
-export function increaseStock(id: number, amount: number, token: string) {
+export function increaseStock(id: number, amount: number, token: string, reason = "RESTOCK") {
   return apiFetch<Product>(`/api/products/${id}/increase_stock/`, {
     method: "POST",
-    body: { amount },
+    body: { amount, reason },
     token,
   })
 }
 
-export function decreaseStock(id: number, amount: number, token: string) {
+export function decreaseStock(id: number, amount: number, token: string, reason = "SALE") {
   return apiFetch<Product>(`/api/products/${id}/decrease_stock/`, {
     method: "POST",
-    body: { amount },
+    body: { amount, reason },
     token,
   })
 }

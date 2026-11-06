@@ -10,16 +10,73 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import type { DemandShare, VolatilityItem } from "@/lib/forecast-data"
+import type { ForecastResult, TopProducts } from "@/lib/types/analytics"
+import { formatCompact, formatNumber } from "@/lib/format"
 
-// Purple / violet / slate palette for the donut slices.
 const SHARE_COLORS = [
-  "var(--chart-1)", // purple
-  "oklch(0.55 0.18 320)", // violet
-  "oklch(0.55 0.02 300)", // slate
-  "oklch(0.65 0.16 300)", // light violet
-  "oklch(0.7 0.02 300)", // light slate
+  "var(--chart-1)",
+  "oklch(0.55 0.18 320)",
+  "oklch(0.55 0.02 300)",
+  "oklch(0.65 0.16 300)",
+  "oklch(0.7 0.02 300)",
 ]
+const OTHER_COLOR = "var(--muted)"
+const LOW_CONFIDENCE = 0.75
+const MAX_VOLATILITY_ROWS = 6
+
+type DemandShare = {
+  productId: number | "other"
+  label: string
+  volume: number
+}
+
+type VolatilityItem = {
+  productId: number
+  label: string
+  sku: string | null
+  confidenceScore: number
+}
+
+function toShareData(top: TopProducts | null): DemandShare[] {
+  if (!top) return []
+  const slices: DemandShare[] = top.items.map((item) => ({
+    productId: item.id,
+    label: item.name,
+    volume: item.units,
+  }))
+  if (top.other.units > 0) {
+    slices.push({
+      productId: "other",
+      label: `Other (${formatNumber(top.other.product_count)})`,
+      volume: top.other.units,
+    })
+  }
+  return slices
+}
+
+function toLowConfidence(forecasts: ForecastResult[] | null): VolatilityItem[] {
+  if (!forecasts) return []
+  const latestPerProduct = new Map<number, ForecastResult>()
+  for (const forecast of forecasts) {
+    const current = latestPerProduct.get(forecast.product)
+    if (!current || forecast.generated_at > current.generated_at) {
+      latestPerProduct.set(forecast.product, forecast)
+    }
+  }
+  return [...latestPerProduct.values()]
+    .map((f) => ({
+      productId: f.product,
+      label: f.product_name ?? `Product #${f.product}`,
+      sku: f.product_sku ?? null,
+      confidenceScore: Number(f.confidence_score),
+    }))
+    .filter((item) => item.confidenceScore < LOW_CONFIDENCE)
+    .sort((a, b) => a.confidenceScore - b.confidenceScore)
+}
+
+function sliceColor(slice: DemandShare, index: number) {
+  return slice.productId === "other" ? OTHER_COLOR : SHARE_COLORS[index % SHARE_COLORS.length]
+}
 
 type ShareTooltipProps = {
   active?: boolean
@@ -38,7 +95,7 @@ function ShareTooltip({ active, payload, total }: ShareTooltipProps) {
         {pct}%
       </p>
       <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
-        {slice.volume.toLocaleString("en-US")} units
+        {formatNumber(slice.volume)} units
       </p>
     </div>
   )
@@ -64,7 +121,7 @@ function VolatilityRow({ item }: { item: VolatilityItem }) {
         </span>
         <div className="flex flex-col">
           <span className="text-sm font-medium text-foreground">{item.label}</span>
-          <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>
+          {item.sku && <span className="font-mono text-xs text-muted-foreground">{item.sku}</span>}
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -79,7 +136,7 @@ function VolatilityRow({ item }: { item: VolatilityItem }) {
               : "shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-700"
           }
         >
-          High Volatility Matrix
+          {isCritical ? "Critical" : "Review"}
         </Badge>
       </div>
     </li>
@@ -87,18 +144,20 @@ function VolatilityRow({ item }: { item: VolatilityItem }) {
 }
 
 type ForecastAnalyticsGridProps = {
-  shareData?: DemandShare[]
-  volatilityData?: VolatilityItem[]
+  topProducts: TopProducts | null
+  forecasts: ForecastResult[] | null
+  shareWeeks: number
 }
 
 export default function ForecastAnalyticsGrid({
-  shareData = [],
-  volatilityData = [],
+  topProducts,
+  forecasts,
+  shareWeeks,
 }: ForecastAnalyticsGridProps) {
+  const shareData = toShareData(topProducts)
   const total = shareData.reduce((sum, slice) => sum + slice.volume, 0)
-  const lowConfidence = volatilityData.filter(
-    (item) => item.confidenceScore < 0.75,
-  )
+  const lowConfidence = toLowConfidence(forecasts)
+  const hasForecasts = (forecasts?.length ?? 0) > 0
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -107,7 +166,7 @@ export default function ForecastAnalyticsGrid({
         <CardHeader>
           <CardTitle className="text-base">Demand Share Distribution</CardTitle>
           <CardDescription>
-            Product contribution to next week&apos;s total forecast volume
+            Share of units sold in the last {shareWeeks} weeks · top {topProducts?.items.length ?? 0} products
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
@@ -132,10 +191,7 @@ export default function ForecastAnalyticsGrid({
                   isAnimationActive={false}
                 >
                   {shareData.map((slice, index) => (
-                    <Cell
-                      key={slice.productId}
-                      fill={SHARE_COLORS[index % SHARE_COLORS.length]}
-                    />
+                    <Cell key={slice.productId} fill={sliceColor(slice, index)} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -150,7 +206,7 @@ export default function ForecastAnalyticsGrid({
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
-                {(total / 1000).toFixed(1)}k
+                {formatCompact(total)}
               </span>
               <span className="text-xs text-muted-foreground">total units</span>
             </div>
@@ -165,15 +221,12 @@ export default function ForecastAnalyticsGrid({
                   key={slice.productId}
                   className="flex items-center justify-between gap-3"
                 >
-                  <span className="flex items-center gap-2 text-sm text-foreground">
+                  <span className="flex min-w-0 items-center gap-2 text-sm text-foreground">
                     <span
-                      className="size-2.5 rounded-full"
-                      style={{
-                        backgroundColor:
-                          SHARE_COLORS[index % SHARE_COLORS.length],
-                      }}
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: sliceColor(slice, index) }}
                     />
-                    {slice.label}
+                    <span className="truncate">{slice.label}</span>
                   </span>
                   <span className="font-mono text-sm font-medium tabular-nums text-muted-foreground">
                     {pct}%
@@ -190,21 +243,31 @@ export default function ForecastAnalyticsGrid({
         <CardHeader>
           <CardTitle className="text-base">Prediction Volatility Grid</CardTitle>
           <CardDescription>
-            Low-confidence nodes flagged for review · {lowConfidence.length}{" "}
-            active
+            Forecasts below {LOW_CONFIDENCE * 100}% confidence · {lowConfidence.length} flagged
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {lowConfidence.length === 0 ? (
+          {!hasForecasts ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              All nodes within confidence tolerance.
+              No forecasts yet. Run a forecast to score each product.
+            </p>
+          ) : lowConfidence.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              All forecasts are within the confidence tolerance.
             </p>
           ) : (
-            <ul className="flex flex-col gap-2.5">
-              {lowConfidence.map((item) => (
-                <VolatilityRow key={item.productId} item={item} />
-              ))}
-            </ul>
+            <>
+              <ul className="flex flex-col gap-2.5">
+                {lowConfidence.slice(0, MAX_VOLATILITY_ROWS).map((item) => (
+                  <VolatilityRow key={item.productId} item={item} />
+                ))}
+              </ul>
+              {lowConfidence.length > MAX_VOLATILITY_ROWS && (
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  + {formatNumber(lowConfidence.length - MAX_VOLATILITY_ROWS)} more low-confidence products
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
