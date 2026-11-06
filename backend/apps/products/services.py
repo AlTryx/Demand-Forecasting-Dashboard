@@ -3,6 +3,12 @@ from rest_framework.exceptions import NotFound, ValidationError
 
 class ProductService:
     @staticmethod
+    def validate_adjustment_reason(reason):
+        if reason not in StockLog.ChangeReasons.values:
+            valid_reasons = ", ".join(StockLog.ChangeReasons.values)
+            raise ValidationError(f"Reason must be one of: {valid_reasons}")
+
+    @staticmethod
     def create_product(name, category, price, current_stock, business):
         return Product.objects.create(
             name=name,
@@ -70,7 +76,26 @@ class ProductService:
             current_stock=0
         )
 
+    def adjust_stock(self, product_id, business, amount, reason):
+        if amount <= 0:
+            raise ValidationError("Amount must be positive")
+
+        self.validate_adjustment_reason(reason)
+
+        product = self.get_product(product_id, business)
+        new_stock = product.current_stock + amount
+
+        if new_stock < 0:
+            raise ValidationError("Not enough stock")
+
+        product.current_stock = new_stock
+        product.save()
+
+        self.create_stock_log(product, amount, reason)
+        return product
+
     def decrease_stock(self, product_id, business, amount, reason=StockLog.ChangeReasons.SALE):
+        self.validate_adjustment_reason(reason)
         if amount <= 0:
             raise ValidationError("Amount must be positive")
 
@@ -86,6 +111,7 @@ class ProductService:
         return product
 
     def increase_stock(self, product_id, business, amount, reason=StockLog.ChangeReasons.RESTOCK):
+        self.validate_adjustment_reason(reason)
         if amount <= 0:
             raise ValidationError("Amount must be positive")
 

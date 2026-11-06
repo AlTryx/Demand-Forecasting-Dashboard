@@ -8,13 +8,15 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
   Settings,
   TrendingUp,
   Users,
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { products } from "@/lib/forecast-data"
+import { formatNumber } from "@/lib/format"
+import type { ProductRef, TopProduct } from "@/lib/types/analytics"
 import { BusinessInfoCard } from "./business-info-card"
 import {
   DEFAULT_SETTINGS,
@@ -24,18 +26,35 @@ import {
 import { TeamDialog } from "./team-dialog"
 
 type SidebarProps = {
-  selected: string
-  onSelect: (id: string) => void
+  selectedId: number | null
+  onSelect: (product: ProductRef | null) => void
+  topProducts: TopProduct[]
+  totalProducts: number
+  loading: boolean
+  onOpenSearch: () => void
   isOpen?: boolean
   onClose?: () => void
 }
 
-export function Sidebar({ selected, onSelect, isOpen, onClose }: SidebarProps) {
-  // Desktop collapse (icons-only rail). Persists across renders.
+export function Sidebar({
+  selectedId,
+  onSelect,
+  topProducts,
+  totalProducts,
+  loading,
+  onOpenSearch,
+  isOpen,
+  onClose,
+}: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [teamOpen, setTeamOpen] = useState(false)
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS)
+
+  const choose = (product: ProductRef | null) => {
+    onSelect(product)
+    onClose?.()
+  }
 
   return (
     <>
@@ -102,71 +121,54 @@ export function Sidebar({ selected, onSelect, isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        {/* Products nav */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-5">
           <SectionLabel collapsed={collapsed}>Products</SectionLabel>
           <ul className="flex flex-col gap-1">
-            {products.map((product, i) => {
-              const isActive = selected === product.id
-              const isOverview = product.id === "overview"
-              const Icon = isOverview ? LayoutGrid : Package
-              return (
-                <li
-                  key={product.id}
-                  className="animate-fade-up"
-                  style={{ animationDelay: `${i * 35}ms` }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelect(product.id)
-                      if (onClose) onClose()
-                    }}
-                    aria-current={isActive ? "page" : undefined}
-                    title={collapsed ? product.label : undefined}
-                    className={cn(
-                      "group/item relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
-                      isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    )}
+            <li>
+              <NavItem
+                collapsed={collapsed}
+                active={selectedId === null}
+                icon={LayoutGrid}
+                label="Overview"
+                onClick={() => choose(null)}
+              />
+            </li>
+            {loading && topProducts.length === 0
+              ? Array.from({ length: 5 }, (_, i) => (
+                  <li key={i} className="px-3 py-2">
+                    <div className="h-4 animate-pulse rounded bg-sidebar-accent" />
+                  </li>
+                ))
+              : topProducts.map((product, i) => (
+                  <li
+                    key={product.id}
+                    className="animate-fade-up"
+                    style={{ animationDelay: `${i * 35}ms` }}
                   >
-                    {/* active rail */}
-                    <span
-                      className={cn(
-                        "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-all duration-300",
-                        isActive ? "opacity-100" : "opacity-0",
-                      )}
-                      aria-hidden="true"
+                    <NavItem
+                      collapsed={collapsed}
+                      active={selectedId === product.id}
+                      icon={Package}
+                      label={product.name}
+                      meta={product.sku ?? undefined}
+                      onClick={() => choose({ id: product.id, name: product.name, sku: product.sku })}
                     />
-                    <Icon
-                      className="size-4 shrink-0 transition-transform duration-200 group-hover/item:scale-110"
-                      aria-hidden="true"
-                    />
-                    <span
-                      className={cn(
-                        "flex-1 text-left transition-all duration-200",
-                        collapsed
-                          ? "md:w-0 md:overflow-hidden md:opacity-0"
-                          : "opacity-100",
-                      )}
-                    >
-                      {product.label}
-                    </span>
-                    <span
-                      className={cn(
-                        "font-mono text-[11px] tabular-nums text-muted-foreground/70 transition-all duration-200",
-                        collapsed
-                          ? "md:w-0 md:overflow-hidden md:opacity-0"
-                          : "opacity-100",
-                      )}
-                    >
-                      {product.sku}
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
+                  </li>
+                ))}
+            {totalProducts > topProducts.length && (
+              <li>
+                <NavItem
+                  collapsed={collapsed}
+                  active={false}
+                  icon={Search}
+                  label={`Search all ${formatNumber(totalProducts)} products`}
+                  onClick={() => {
+                    onOpenSearch()
+                    onClose?.()
+                  }}
+                />
+              </li>
+            )}
           </ul>
 
           <div className="mt-6">
@@ -289,6 +291,63 @@ function RailButton({
         )}
         aria-hidden="true"
       />
+    </button>
+  )
+}
+
+function NavItem({
+  collapsed,
+  active,
+  icon: Icon,
+  label,
+  meta,
+  onClick,
+}: {
+  collapsed: boolean
+  active: boolean
+  icon: typeof Settings
+  label: string
+  meta?: string
+  onClick: () => void
+}) {
+  const hideWhenCollapsed = collapsed ? "md:w-0 md:overflow-hidden md:opacity-0" : "opacity-100"
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      title={collapsed ? label : undefined}
+      className={cn(
+        "group/item relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:translate-x-0.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-all duration-300",
+          active ? "opacity-100" : "opacity-0",
+        )}
+        aria-hidden="true"
+      />
+      <Icon
+        className="size-4 shrink-0 transition-transform duration-200 group-hover/item:scale-110"
+        aria-hidden="true"
+      />
+      <span className={cn("min-w-0 flex-1 truncate text-left transition-all duration-200", hideWhenCollapsed)}>
+        {label}
+      </span>
+      {meta && (
+        <span
+          className={cn(
+            "max-w-20 truncate font-mono text-[11px] tabular-nums text-muted-foreground/70 transition-all duration-200",
+            hideWhenCollapsed,
+          )}
+        >
+          {meta}
+        </span>
+      )}
     </button>
   )
 }
