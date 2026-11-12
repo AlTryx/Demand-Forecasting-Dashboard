@@ -12,10 +12,12 @@ class ForecastResult(TimeStampedModel):
     horizon = models.IntegerField(choices=HorizonOptions)
     confidence_score = models.DecimalField(max_digits=7, decimal_places=4)
     generated_at = models.DateTimeField(auto_now_add=True)
+    week_start = models.DateField(null=True, blank=True)
     class Meta:
         indexes = [
             models.Index(fields=["product"]),
             models.Index(fields=["product", "-generated_at"]),
+            models.Index(fields=["week_start", "product"]),
         ]
         constraints = [
             models.CheckConstraint(

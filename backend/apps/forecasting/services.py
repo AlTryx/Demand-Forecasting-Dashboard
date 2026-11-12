@@ -10,7 +10,7 @@ from rest_framework.exceptions import NotFound
 
 from apps.businesses.models import Business
 from apps.products.models import Product
-from apps.sales.models import OrderLine
+from apps.sales.models import DailySales, OrderLine
 from . import ml
 from .models import ForecastResult
 
@@ -23,14 +23,18 @@ class ForecastingService:
             product = Product.objects.get(id=product_id, business=business)
         except Product.DoesNotExist:
             raise NotFound("Product not found or access denied.")
-        return ForecastResult.objects.filter(product=product)
+        return ForecastResult.objects.filter(product=product).select_related("product")
 
     def get_latest_n_forecasts(self, business_id):
         try:
             business = Business.objects.get(id=business_id)
         except Business.DoesNotExist:
             raise NotFound("Business not found or access denied.")
-        return ForecastResult.objects.filter(product__business=business).order_by('-created_at')[:100]
+        return (
+            ForecastResult.objects.filter(product__business=business)
+            .select_related("product")
+            .order_by('-created_at')[:100]
+        )
 
     @classmethod
     def run_prediction_pipeline(cls, as_of=None):
@@ -49,6 +53,30 @@ class ForecastingService:
         cls._save_predictions(output.predictions)
         return True
 
+    @classmethod
+    def run_for_business(cls, business) -> int:
+        daily = cls._fetch_business_sales(business)
+        if daily.empty:
+            return 0
+
+        as_of = pd.Timestamp(daily["date"].max()) + pd.Timedelta(days=1)
+        output = ml.forecast(daily, as_of=as_of)
+        if output.predictions.empty:
+            logger.warning("Business %s has no complete week of sales; nothing to forecast", business.id)
+            return 0
+        if output.report is not None:
+            logger.info(output.report.summary())
+        return cls._save_predictions(output.predictions)
+
+    @staticmethod
+    def _fetch_business_sales(business):
+        rows = (
+            DailySales.objects.filter(business=business)
+            .values_list("product_id", "date", "units")
+            .iterator(chunk_size=50_000)
+        )
+        return pd.DataFrame.from_records(rows, columns=["series_id", "date", "quantity"])
+
     @staticmethod
     def _fetch_sales_data():
         sales_qs = (
@@ -66,6 +94,7 @@ class ForecastingService:
         forecasts = [
             ForecastResult(
                 product_id=int(row.series_id),
+                week_start=pd.Timestamp(row.week_start).date(),
                 predicted_quantity=round(row.predicted),
                 lower_bound=None if pd.isna(row.lower) else round(row.lower),
                 upper_bound=None if pd.isna(row.upper) else round(row.upper),
@@ -75,5 +104,6 @@ class ForecastingService:
             for row in predictions.itertuples()
         ]
         with transaction.atomic():
-            ForecastResult.objects.bulk_create(forecasts)
+            ForecastResult.objects.bulk_create(forecasts, batch_size=1_000)
         logger.info("Saved %d forecasts", len(forecasts))
+        return len(forecasts)

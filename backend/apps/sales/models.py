@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from core.models import TimeStampedModel
 from django.core.validators import MinValueValidator
@@ -39,3 +40,52 @@ class OrderLine(models.Model):
 
     def __str__(self):
         return f"Line Item ({self.quantity_sold}x) for Order #{self.order_id}"
+
+
+class DailySales(models.Model):
+    business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE, related_name='daily_sales')
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, related_name='daily_sales')
+    date = models.DateField()
+    units = models.PositiveIntegerField()
+    revenue = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['product', 'date'], name='daily_sales_product_date_uniq'),
+        ]
+        indexes = [
+            models.Index(fields=['business', 'date']),
+        ]
+
+    def __str__(self):
+        return f"{self.product_id} on {self.date}: {self.units} units"
+
+
+class ImportJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        DONE = "done", "Done"
+        FAILED = "failed", "Failed"
+
+    business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE, related_name='import_jobs')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    rows_processed = models.PositiveIntegerField(default=0)
+    rows_written = models.PositiveIntegerField(default=0)
+    rows_skipped = models.PositiveIntegerField(default=0)
+    products_created = models.PositiveIntegerField(default=0)
+    row_errors = models.JSONField(default=list, blank=True)
+    error = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['business', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Import #{self.id} ({self.status}) - {self.file_name}"

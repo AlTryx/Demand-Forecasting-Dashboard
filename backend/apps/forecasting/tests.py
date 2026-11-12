@@ -6,7 +6,9 @@ from django.test import SimpleTestCase, TestCase
 
 from apps.businesses.models import Business
 from apps.products.models import Product
-from apps.sales.models import Order, OrderLine
+from apps.sales.models import DailySales, Order, OrderLine
+from apps.sales.tests import make_user
+from rest_framework.test import APIClient
 from . import ml
 from .models import ForecastResult
 from .services import ForecastingService
@@ -191,3 +193,59 @@ class ForecastingServiceTests(TestCase):
     def test_pipeline_without_sales_saves_nothing(self):
         self.assertFalse(ForecastingService.run_prediction_pipeline())
         self.assertEqual(ForecastResult.objects.count(), 0)
+
+
+class RunForBusinessTests(TestCase):
+    start = datetime.date(2017, 1, 2)
+    weeks = 40
+
+    def setUp(self):
+        self.shop = Business.objects.create(name="Imported shop")
+        self.products = [
+            Product.objects.create(name=f"Item {i}", category="Imported", price=2, current_stock=0, business=self.shop)
+            for i in range(8)
+        ]
+        DailySales.objects.bulk_create([
+            DailySales(
+                business=self.shop,
+                product=product,
+                date=self.start + datetime.timedelta(days=day),
+                units=1 + (day + i) % 5,
+                revenue=2 * (1 + (day + i) % 5),
+            )
+            for day in range(self.weeks * 7)
+            for i, product in enumerate(self.products)
+        ])
+
+    def test_forecasts_the_week_after_the_data_not_after_today(self):
+        created = ForecastingService.run_for_business(self.shop)
+
+        self.assertEqual(created, len(self.products))
+        expected_week = self.start + datetime.timedelta(weeks=self.weeks)
+        self.assertEqual(
+            set(ForecastResult.objects.values_list("week_start", flat=True)),
+            {expected_week},
+        )
+        self.assertTrue(all(f.predicted_quantity > 0 for f in ForecastResult.objects.all()))
+
+    def test_other_businesses_sales_are_not_used(self):
+        other = Business.objects.create(name="Empty shop")
+
+        self.assertEqual(ForecastingService.run_for_business(other), 0)
+        self.assertFalse(ForecastResult.objects.exists())
+
+    def test_run_endpoint_returns_the_number_of_forecasts_and_list_shows_names(self):
+        client = APIClient()
+        client.force_authenticate(make_user("owner", self.shop))
+
+        run = client.post("/api/forecasting/results/run/")
+        listing = client.get("/api/forecasting/results/", {"product_id": self.products[0].id})
+
+        self.assertEqual(run.status_code, 200)
+        self.assertEqual(run.data, {"forecasts_created": len(self.products)})
+        self.assertEqual(listing.data[0]["product_name"], "Item 0")
+        self.assertEqual(listing.data[0]["product_price"], "2.00")
+        self.assertEqual(
+            listing.data[0]["target_date"],
+            (self.start + datetime.timedelta(weeks=self.weeks)).isoformat(),
+        )

@@ -422,3 +422,6 @@ FodyWeavers.xsd
 
 .pyc
 db.sqlite3
+
+# Uploaded CSVs waiting to be imported
+backend/var/

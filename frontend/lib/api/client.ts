@@ -1,3 +1,5 @@
+import { clearTokens, getRefreshToken, setTokens } from "@/lib/auth/tokens"
+
 /**
  * Centralized API client for the Django backend.
  *
@@ -47,11 +49,25 @@ export async function apiFetch<T = unknown>(
     finalHeaders.set("Authorization", `Bearer ${token}`)
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: finalHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  const send = () =>
+    fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: finalHeaders,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+
+  let response = await send()
+
+  if (response.status === 401 && token) {
+    const newAccess = await refreshAccess()
+    if (newAccess) {
+      finalHeaders.set("Authorization", `Bearer ${newAccess}`)
+      response = await send()
+    } else {
+      clearTokens()
+      if (typeof window !== "undefined") window.location.replace("/signin")
+    }
+  }
 
   // Try to parse a JSON payload; tolerate empty bodies (e.g. 204).
   const text = await response.text()
@@ -65,6 +81,29 @@ export async function apiFetch<T = unknown>(
   }
 
   return data as T
+}
+
+let refreshInFlight: Promise<string | null> | null = null
+
+function refreshAccess(): Promise<string | null> {
+  const refresh = getRefreshToken()
+  if (!refresh) return Promise.resolve(null)
+  refreshInFlight ??= fetch(`${API_BASE_URL}/api/token/refresh/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh }),
+  })
+    .then(async (res) => {
+      if (!res.ok) return null
+      const data = (await res.json()) as { access: string; refresh?: string }
+      setTokens(data)
+      return data.access
+    })
+    .catch(() => null)
+    .finally(() => {
+      refreshInFlight = null
+    })
+  return refreshInFlight
 }
 
 function safeJsonParse(text: string): unknown {
