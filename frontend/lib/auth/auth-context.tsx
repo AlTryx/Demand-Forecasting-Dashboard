@@ -11,9 +11,11 @@ import {
 } from "react"
 import {
   getCurrentUser,
+  updateCurrentUser,
   login as loginRequest,
   register as registerRequest,
   type RegisterPayload,
+  type UpdateProfilePayload,
   type UserProfile,
 } from "@/lib/auth/auth-service"
 import {
@@ -29,6 +31,7 @@ type AuthContextValue = {
   profile: UserProfile | null
   profileLoading: boolean
   refreshProfile: () => Promise<void>
+  updateProfile: (payload: UpdateProfilePayload) => Promise<UserProfile>
   updateProfileLocally: (payload: Omit<UserProfile, "id">) => void
   login: (username: string, password: string) => Promise<void>
   register: (payload: RegisterPayload) => Promise<void>
@@ -107,6 +110,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const updateProfile = useCallback(
+    async (payload: UpdateProfilePayload) => {
+      const token = getAccessToken()
+      if (!token) throw new Error("Not authenticated")
+      setProfileLoading(true)
+      try {
+        const updatedProfile = await updateCurrentUser(token, payload)
+        setProfile(updatedProfile)
+        return updatedProfile
+      } catch (error) {
+        console.error("Failed to update profile:", error)
+        throw error
+      } finally {
+        setProfileLoading(false)
+      }
+    },
+    [],
+  )
+
   const updateProfileLocally = useCallback(
     (payload: Omit<UserProfile, "id">) => {
       setProfile((prev) => {
@@ -130,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refreshProfile,
+      updateProfile,
       updateProfileLocally,
     }),
     [
@@ -141,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refreshProfile,
+      updateProfile,
       updateProfileLocally,
     ],
   )
