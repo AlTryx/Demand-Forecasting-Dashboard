@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Settings as SettingsIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Modal } from "./modal"
+import type { UpdateProfilePayload, UserProfile } from "@/lib/auth/auth-service"
 
 export type DashboardSettings = {
   currency: "EUR" | "USD"
@@ -99,6 +100,9 @@ type SettingsDialogProps = {
   onClose: () => void
   settings: DashboardSettings
   onSave: (settings: DashboardSettings) => void
+  profile: UserProfile | null
+  profileLoading: boolean
+  onSaveProfile: (payload: UpdateProfilePayload) => void
 }
 
 export function SettingsDialog({
@@ -106,18 +110,38 @@ export function SettingsDialog({
   onClose,
   settings,
   onSave,
+  profile,
+  profileLoading,
+  onSaveProfile,
 }: SettingsDialogProps) {
   const [draft, setDraft] = useState<DashboardSettings>(settings)
+  const [profileDraft, setProfileDraft] = useState<UpdateProfilePayload>({
+    first_name: "",
+    last_name: "",
+    email: "",
+  })
 
-  // Reset the working copy whenever the dialog is (re)opened.
+  // Reset the working copies whenever the dialog is (re)opened.
   useEffect(() => {
-    if (open) setDraft(settings)
-  }, [open, settings])
+    if (open) {
+      setDraft(settings)
+      setProfileDraft({
+        first_name: profile?.first_name ?? "",
+        last_name: profile?.last_name ?? "",
+        email: profile?.email ?? "",
+      })
+    }
+  }, [open, settings, profile])
 
   const set = <K extends keyof DashboardSettings>(
     key: K,
     value: DashboardSettings[K],
   ) => setDraft((prev) => ({ ...prev, [key]: value }))
+
+  const setProfile = <K extends keyof UpdateProfilePayload>(
+    key: K,
+    value: UpdateProfilePayload[K],
+  ) => setProfileDraft((prev) => ({ ...prev, [key]: value }))
 
   return (
     <Modal
@@ -139,6 +163,7 @@ export function SettingsDialog({
             type="button"
             onClick={() => {
               onSave(draft)
+              onSaveProfile(profileDraft)
               onClose()
             }}
             className="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
@@ -149,6 +174,49 @@ export function SettingsDialog({
       }
     >
       <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Profile</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {profileLoading
+                ? "Loading your profile…"
+                : "Update how your name appears in the dashboard."}
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+              First name
+              <input
+                type="text"
+                value={profileDraft.first_name}
+                onChange={(event) => setProfile("first_name", event.target.value)}
+                className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
+                disabled={profileLoading}
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+              Last name
+              <input
+                type="text"
+                value={profileDraft.last_name}
+                onChange={(event) => setProfile("last_name", event.target.value)}
+                className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
+                disabled={profileLoading}
+              />
+            </label>
+          </div>
+          <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
+            Email
+            <input
+              type="email"
+              value={profileDraft.email}
+              onChange={(event) => setProfile("email", event.target.value)}
+              className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-normal outline-none transition-colors focus:border-primary"
+              disabled={profileLoading}
+            />
+          </label>
+        </div>
+
         <SegmentedControl
           label="Display currency"
           value={draft.currency}

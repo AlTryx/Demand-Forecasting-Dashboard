@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useAuth } from "@/lib/auth/auth-context"
 import {
   Activity,
   ChevronLeft,
@@ -51,10 +52,31 @@ export function Sidebar({
   const [teamOpen, setTeamOpen] = useState(false)
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS)
 
+  const { profile, profileLoading, updateProfileLocally } = useAuth()
+
   const choose = (product: ProductRef | null) => {
     onSelect(product)
     onClose?.()
   }
+
+  useEffect(() => {
+    if (profile?.id) {
+      const storedSettings = localStorage.getItem(`dashboard-settings-${profile.id}`)
+      if (storedSettings) {
+        try {
+          setSettings(JSON.parse(storedSettings) as DashboardSettings)
+        } catch {
+          setSettings(DEFAULT_SETTINGS)
+        }
+      }
+    }
+  }, [profile?.id])
+
+  useEffect(() => {
+    if (profile?.id) {
+      localStorage.setItem(`dashboard-settings-${profile.id}`, JSON.stringify(settings))
+    }
+  }, [settings, profile?.id])
 
   return (
     <>
@@ -229,6 +251,9 @@ export function Sidebar({
         onClose={() => setSettingsOpen(false)}
         settings={settings}
         onSave={setSettings}
+        profile={profile}
+        profileLoading={profileLoading}
+        onSaveProfile={(payload) => updateProfileLocally(payload)}
       />
       <TeamDialog open={teamOpen} onClose={() => setTeamOpen(false)} />
     </>

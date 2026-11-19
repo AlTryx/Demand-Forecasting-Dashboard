@@ -10,9 +10,11 @@ import {
   type ReactNode,
 } from "react"
 import {
+  getCurrentUser,
   login as loginRequest,
   register as registerRequest,
   type RegisterPayload,
+  type UserProfile,
 } from "@/lib/auth/auth-service"
 import {
   clearTokens,
@@ -24,6 +26,10 @@ type AuthContextValue = {
   /** True once we have read the initial token state on the client. */
   ready: boolean
   isAuthenticated: boolean
+  profile: UserProfile | null
+  profileLoading: boolean
+  refreshProfile: () => Promise<void>
+  updateProfileLocally: (payload: Omit<UserProfile, "id">) => void
   login: (username: string, password: string) => Promise<void>
   register: (payload: RegisterPayload) => Promise<void>
   logout: () => void
@@ -34,14 +40,29 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
 
-  // Hydrate auth state from storage after mount to avoid SSR mismatches.
+  // Hydrate auth state and profile after mount to avoid SSR mismatches.
   useEffect(() => {
-    setIsAuthenticated(Boolean(getAccessToken()))
+    const token = getAccessToken()
+    setIsAuthenticated(Boolean(token))
     setReady(true)
 
+    if (token) {
+      setProfileLoading(true)
+      getCurrentUser(token)
+        .then(setProfile)
+        .catch(() => setProfile(null))
+        .finally(() => setProfileLoading(false))
+    }
+
     // Keep auth state in sync across tabs.
-    const onStorage = () => setIsAuthenticated(Boolean(getAccessToken()))
+    const onStorage = () => {
+      const nextToken = getAccessToken()
+      setIsAuthenticated(Boolean(nextToken))
+      if (!nextToken) setProfile(null)
+    }
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
   }, [])
@@ -50,6 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tokens = await loginRequest(username, password)
     setTokens(tokens)
     setIsAuthenticated(true)
+    setProfileLoading(true)
+    try {
+      setProfile(await getCurrentUser(tokens.access))
+    } catch {
+      setProfile(null)
+    } finally {
+      setProfileLoading(false)
+    }
   }, [])
 
   const register = useCallback(async (payload: RegisterPayload) => {
@@ -59,11 +88,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     clearTokens()
     setIsAuthenticated(false)
+    setProfile(null)
   }, [])
 
+  const refreshProfile = useCallback(async () => {
+    const token = getAccessToken()
+    if (!token) {
+      setProfile(null)
+      return
+    }
+    setProfileLoading(true)
+    try {
+      setProfile(await getCurrentUser(token))
+    } catch {
+      setProfile(null)
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [])
+
+  const updateProfileLocally = useCallback(
+    (payload: Omit<UserProfile, "id">) => {
+      setProfile((prev) => {
+        const next = prev ? { ...prev, ...payload } : null
+        if (typeof window !== "undefined" && next) {
+          window.localStorage.setItem("user_profile", JSON.stringify(next))
+        }
+        return next
+      })
+    },
+    [],
+  )
+
   const value = useMemo<AuthContextValue>(
-    () => ({ ready, isAuthenticated, login, register, logout }),
-    [ready, isAuthenticated, login, register, logout],
+    () => ({
+      ready,
+      isAuthenticated,
+      profile,
+      profileLoading,
+      login,
+      register,
+      logout,
+      refreshProfile,
+      updateProfileLocally,
+    }),
+    [
+      ready,
+      isAuthenticated,
+      profile,
+      profileLoading,
+      login,
+      register,
+      logout,
+      refreshProfile,
+      updateProfileLocally,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
