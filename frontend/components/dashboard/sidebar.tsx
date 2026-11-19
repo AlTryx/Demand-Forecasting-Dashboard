@@ -52,7 +52,7 @@ export function Sidebar({
   const [teamOpen, setTeamOpen] = useState(false)
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS)
 
-  const { profile, profileLoading, updateProfileLocally } = useAuth()
+  const { profile, profileLoading, updateProfile } = useAuth()
 
   const choose = (product: ProductRef | null) => {
     onSelect(product)
@@ -253,7 +253,7 @@ export function Sidebar({
         onSave={setSettings}
         profile={profile}
         profileLoading={profileLoading}
-        onSaveProfile={(payload) => updateProfileLocally(payload)}
+        onSaveProfile={(payload) => { void updateProfile(payload).catch(() => undefined) }}
       />
       <TeamDialog open={teamOpen} onClose={() => setTeamOpen(false)} />
     </>
