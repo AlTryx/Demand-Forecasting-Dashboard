@@ -28,7 +28,7 @@ const TIMELINE_WEEKS = 12
 
 export function Dashboard() {
   const router = useRouter()
-  const { logout } = useAuth()
+  const { logout, profile } = useAuth()
   const [selected, setSelected] = useState<ProductRef | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -104,8 +104,11 @@ export function Dashboard() {
               <LogOut className="size-4" aria-hidden="true" />
               <span className="hidden sm:inline">Log out</span>
             </button>
-            <div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-              DF
+            <div
+              className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+              title={[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || "User"}
+            >
+              {`${profile?.first_name?.trim().charAt(0) ?? ""}${profile?.last_name?.trim().charAt(0) ?? ""}`.toUpperCase() || "U"}
             </div>
           </div>
         </header>
