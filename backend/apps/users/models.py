@@ -19,6 +19,13 @@ class User(AbstractUser, TimeStampedModel):
     email = models.EmailField(unique=True, blank=False)
     first_name = models.CharField(max_length=30, blank=False)
     last_name = models.CharField(max_length=30, blank=False)
+    active_business = models.ForeignKey(
+        'businesses.Business',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
     USERNAME_FIELD = "username"
@@ -36,7 +43,6 @@ class BusinessUser(TimeStampedModel):
     user = models.ForeignKey('users.User', on_delete=models.CASCADE)
     business = models.ForeignKey('businesses.Business', on_delete=models.CASCADE)
     role = models.CharField(max_length=30, choices=Roles.choices, default=Roles.EMPLOYEE)
-    is_active = models.BooleanField(default=True)
 
     class Meta:
         constraints = [

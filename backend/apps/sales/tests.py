@@ -262,4 +262,6 @@ def make_user(username, business):
         last_name="User",
     )
     BusinessUser.objects.create(user=user, business=business, role=BusinessUser.Roles.OWNER)
+    user.active_business = business
+    user.save(update_fields=["active_business"])
     return user

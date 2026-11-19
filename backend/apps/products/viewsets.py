@@ -1,22 +1,13 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import ValidationError
+from core.tenancy import BusinessScopedMixin
 from .serializers import ProductSerializer
 from .services import ProductService
-from .permissions import HasActiveBusiness
 from .models import StockLog
 
-class ProductViewSet(viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated, HasActiveBusiness]
-
-    def get_business(self, request):
-        business_user = request.user.businessuser_set.filter(is_active=True).first()
-        if not business_user:
-            raise PermissionDenied("User has no active business")
-        return business_user.business
-
+class ProductViewSet(BusinessScopedMixin, viewsets.GenericViewSet):
     def paginate_and_respond(self, queryset):
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -31,7 +22,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def list(self, request):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         products = service.get_all_products(business)
 
         return self.paginate_and_respond(products)
@@ -39,7 +30,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def create(self, request):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
 
         serializer = ProductSerializer(data=request.data, context={"business": business})
         if serializer.is_valid():
@@ -57,7 +48,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def retrieve(self, request, pk=None):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         product = service.get_product(pk, business)
 
         serializer = ProductSerializer(product)
@@ -66,7 +57,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def update(self, request, pk=None):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         product = service.get_product(pk, business)
 
         serializer = ProductSerializer(product, data=request.data)
@@ -87,7 +78,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def partial_update(self, request, pk=None):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         product = service.get_product(pk, business)
 
         serializer = ProductSerializer(
@@ -112,7 +103,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def destroy(self, request, pk=None):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         service.delete_product(pk, business)
 
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -123,7 +114,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def search(self, request):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         query = request.query_params.get("q")
 
         if not query:
@@ -139,7 +130,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def low_stock(self, request):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         threshold = int(request.query_params.get("threshold", 10))
 
         products = service.get_low_stock_products(business, threshold)
@@ -149,7 +140,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def out_of_stock(self, request):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
         products = service.get_out_of_stock_products(business)
         return self.paginate_and_respond(products)
 
@@ -159,7 +150,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def decrease_stock(self, request, pk=None):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
 
         amount = request.data.get("amount")
         reason = request.data.get("reason")
@@ -186,7 +177,7 @@ class ProductViewSet(viewsets.GenericViewSet):
 
         try:
             product = service.decrease_stock(pk, business, amount, reason)
-        except Exception as exc:
+        except ValidationError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(product)
@@ -196,7 +187,7 @@ class ProductViewSet(viewsets.GenericViewSet):
     def increase_stock(self, request, pk=None):
         service = ProductService()
 
-        business = self.get_business(request)
+        business = self.business
 
         amount = request.data.get("amount")
         reason = request.data.get("reason")
@@ -223,7 +214,7 @@ class ProductViewSet(viewsets.GenericViewSet):
 
         try:
             product = service.increase_stock(pk, business, amount, reason)
-        except Exception as exc:
+        except ValidationError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(product)

@@ -122,10 +122,10 @@ Demand-Forecasting-Dashboard/
 │   ├── config/
 │   │   ├── settings/        base.py (shared) / development.py / production.py
 │   │   └── urls.py          all /api/ routes are mounted here
-│   ├── core/                TimeStampedModel and shared helpers
+│   ├── core/                TimeStampedModel, tenancy.py (current business), tenant-isolation tests
 │   ├── dataset/             Kaggle train.csv / test.csv
 │   └── apps/
-│       ├── users/           User, BusinessUser (membership + role + active flag)
+│       ├── users/           User (+ active_business), BusinessUser (membership + role)
 │       ├── businesses/      Business
 │       ├── products/        Product, StockLog (append-only stock ledger)
 │       ├── sales/           Order, OrderLine, checkout, seed command
@@ -145,22 +145,37 @@ logic, models hold invariants. Not every app follows this yet.
 
 ## Key concept: how tenancy works
 
-There is no `business` field on `User`. A user can belong to several businesses
-through the **`BusinessUser`** join table, which carries the user's `role`
-(owner / manager / employee) and an `is_active` flag.
+A user can belong to several businesses through the **`BusinessUser`** join
+table, which carries the user's `role` (owner / manager / employee).
 
-`is_active` means **"this is the workspace I am currently looking at"**. The
-intended invariant is *exactly one active membership per user*, and every
-business-scoped query resolves the current tenant through it:
+The workspace the user is currently looking at is **`User.active_business`**, a
+single nullable foreign key. Because it is one column, a user can never have two
+active workspaces at once. `POST /api/businesses/{id}/activate/` switches it, and
+creating a business switches to the new one.
+
+Every business-scoped view resolves the current business in one place,
+`core/tenancy.py`:
 
 ```python
-business_user = request.user.businessuser_set.filter(is_active=True).first()
-business = business_user.business
+from core.tenancy import BusinessScopedMixin
+
+class ProductViewSet(BusinessScopedMixin, viewsets.GenericViewSet):
+    def list(self, request):
+        products = Product.objects.filter(business=self.business)
 ```
 
-This invariant is enforced only in application code, not by a database
-constraint. Any code path that sets `is_active=True` without deactivating the
-others silently breaks it.
+`BusinessScopedMixin` requires an authenticated user and checks that they are
+still a member of their `active_business`. If they have none, or were removed
+from it, every endpoint answers the same way:
+
+```
+403 {"detail": "You have no active business. Create or select one first."}
+    (error code: no_active_business)
+```
+
+`core/test_tenant_isolation.py` proves that a user of one business cannot read
+or change another business's products, sales, imports, forecasts, inventory or
+analytics. Add a case there for every new business-scoped endpoint.
 
 ---
 
@@ -177,11 +192,17 @@ All endpoints are under `/api/` and require a `Bearer` JWT except where noted.
 | GET    | `/api/businesses/`                | memberships of the current user |
 | POST   | `/api/businesses/`                | create + become owner          |
 | POST   | `/api/businesses/{id}/activate/`  | switch active workspace        |
-| GET    | `/api/businesses/me/`             | the active business            |
-| —      | `/api/products/…`                 | CRUD + search/low_stock/stock moves — **currently broken** |
+| GET    | `/api/businesses/me/`             | the active business, or 403 `no_active_business` |
+| —      | `/api/products/…`                 | CRUD + search/low_stock/out_of_stock/stock moves |
 | POST   | `/api/sales/checkout/`            | order + lines + stock decrement, atomic |
-| GET    | `/api/forecasting/results/`       | optional `?product_id=`        |
-| GET    | `/api/inventory/results/`         | **currently broken**           |
+| POST   | `/api/sales/imports/`             | CSV upload (multipart `file`), runs in the background |
+| GET    | `/api/sales/imports/{id}/`        | import job progress and row errors |
+| GET    | `/api/forecasting/results/`       | latest forecast per product, paginated; optional `?product_id=` |
+| POST   | `/api/forecasting/results/run/`   | forecast the active business now |
+| GET    | `/api/analytics/summary/` · `timeline/` · `top-products/` | dashboard figures |
+| GET    | `/api/inventory/results/`         | empty until inventory rows are generated |
+
+Every endpoint from `/api/products/` down is scoped to the active business.
 
 `drf-spectacular` is installed and configured as the schema class but is not yet
 added to `INSTALLED_APPS`, so there is no `/api/docs/` route.
@@ -240,41 +261,36 @@ python manage.py evaluate_forecast          # on the sales in the database
 | Businesses: list / create / activate / me         | ✅ works                        |
 | Sales checkout                                    | ✅ works                        |
 | Marketing site, sign-in/up, onboarding, guards    | ✅ works against the real API   |
-| Dashboard UI                                      | ⚠️ renders on hardcoded mock data (`lib/forecast-data.ts`) |
-| Product endpoints                                 | ❌ broken (see below)           |
-| Inventory endpoints                               | ❌ broken, and no rows are ever created |
-| ML pipeline                                       | ⚠️ tested, but nothing calls it yet |
-| Analytics / `EvaluationMetric`                    | ❌ model only, no API           |
-| Tests                                             | ⚠️ forecasting + one product test only |
+| Dashboard UI                                      | ✅ reads the API                |
+| Product endpoints                                 | ✅ works                        |
+| CSV sales import                                  | ✅ works                        |
+| Inventory endpoints                               | ⚠️ run, but no rows are ever created |
+| ML pipeline                                       | ✅ "Run forecast" button / `POST /api/forecasting/results/run/` |
+| Analytics summary / timeline / top products       | ✅ works                        |
+| `EvaluationMetric` (forecast accuracy)            | ❌ model only, no API           |
+| Tests                                             | ✅ 71 tests incl. tenant isolation |
 | OIDC / Google sign-in                             | ❌ scaffolding only             |
-| Frontend token refresh                            | ❌ written but never called     |
+| Frontend token refresh                            | ✅ a 401 refreshes once and retries |
 | CI, Dockerfile, docker-compose                    | ❌ none                         |
 
 ---
 
 ## Known issues
 
-1. **Product endpoints return 500.** `ProductViewSet` subclasses
-   `viewsets.ViewSet` but calls `self.paginate_queryset()`, which only exists on
-   `GenericViewSet`. Separately, `create()` passes `business` twice.
-2. **Inventory service does not run.** Mismatched annotation names and a
-   `@staticmethod` that takes a `cls` argument. Nothing creates `Inventory`
-   rows in the first place.
-3. **The ML pipeline is never triggered.** `run_prediction_pipeline()` has no
-   caller — no scheduler, no management command, no endpoint. Reruns also add
-   a second forecast per product instead of replacing it.
-4. **Migration drift.** `Product.stock_keeping_unit` has no migration, and
-   `Inventory.status` is still a column in the database after becoming a Python
-   property. Run `python manage.py makemigrations` to generate both.
-5. **Inconsistent tenant resolution.** `sales` and `forecasting` resolve the
-   business with `.first()` instead of `.filter(is_active=True).first()`.
-6. **Seeder bugs.** Creates three simultaneously-active memberships, inserts
-   businesses with explicit primary keys without advancing the Postgres
-   sequence, and guards on the wrong variable (`product` instead of
-   `product_obj`).
-7. **`EvaluationMetric.absolute_error`** is `max_digits=5, decimal_places=2`,
+1. **Nothing creates `Inventory` rows**, so the inventory endpoints and
+   stock-out figures stay empty.
+2. **Forecasts only run on demand.** There is no scheduled weekly run and no
+   `manage.py run_forecast` command.
+3. **Seeder bugs.** Inserts businesses with explicit primary keys without
+   advancing the Postgres sequence, guards on the wrong variable (`product`
+   instead of `product_obj`), and has a hardcoded admin password.
+4. **`EvaluationMetric.absolute_error`** is `max_digits=5, decimal_places=2`,
    which overflows above 999.99.
-8. **No test suite.** All `tests.py` files are unmodified Django stubs.
+5. **Roles are not enforced.** An employee can do everything an owner can.
+6. **Bare `python manage.py test` fails to import some test modules**, because
+   `backend/` and its parent folder both contain an `__init__.py`. Run tests
+   with app labels:
+   `python manage.py test core apps.users apps.businesses apps.products apps.sales apps.forecasting apps.inventory apps.analytics`
 
 ---
 

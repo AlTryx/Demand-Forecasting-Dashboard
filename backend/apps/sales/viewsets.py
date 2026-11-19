@@ -6,30 +6,20 @@ from django.db import transaction
 from rest_framework import mixins, viewsets, status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 
-from apps.products.permissions import HasActiveBusiness
-from core.utils import get_active_business
+from core.tenancy import BusinessScopedMixin
 from .imports import ACTIVE_STATUSES, expire_stale_jobs, start_import_in_background
 from .models import ImportJob
 from .serializers import CheckoutSerializer, ImportJobSerializer
 from .services import SalesService
 
-class SalesViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
-
-    def get_business(self, request):
-        business_user = request.user.businessuser_set.filter(is_active=True).first()
-        if not business_user:
-            raise ValidationError({"detail": "User has no business assigned."})
-        return business_user.business
-
+class SalesViewSet(BusinessScopedMixin, viewsets.ViewSet):
     def create(self, request):
         serializer = CheckoutSerializer(data=request.data)
         if serializer.is_valid():
             sales_service = SalesService()
-            business = self.get_business(request)
+            business = self.business
 
             order = sales_service.process_checkout(
                 business=business,
@@ -43,16 +33,15 @@ class SalesViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class SalesImportViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated, HasActiveBusiness]
+class SalesImportViewSet(BusinessScopedMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = ImportJobSerializer
     parser_classes = [MultiPartParser]
 
     def get_queryset(self):
-        return ImportJob.objects.filter(business=get_active_business(self.request.user))
+        return ImportJob.objects.filter(business=self.business)
 
     def create(self, request):
-        business = get_active_business(request.user)
+        business = self.business
         upload = request.FILES.get("file")
 
         if upload is None:
