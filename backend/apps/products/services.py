@@ -11,13 +11,14 @@ class ProductService:
             raise ValidationError(f"Reason must be one of: {valid_reasons}")
 
     @staticmethod
-    def create_product(name, category, price, current_stock, business):
+    def create_product(name, category, price, current_stock, business, stock_keeping_unit=None):
         return Product.objects.create(
             name=name,
             category=category,
             price=price,
             current_stock=current_stock,
-            business=business
+            business=business,
+            stock_keeping_unit=stock_keeping_unit,
         )
 
     @staticmethod

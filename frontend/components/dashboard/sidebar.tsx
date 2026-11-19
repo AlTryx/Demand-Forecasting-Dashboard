@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth/auth-context"
 import {
   Activity,
+  Boxes,
   ChevronLeft,
   LayoutGrid,
   Package,
@@ -53,6 +55,7 @@ export function Sidebar({
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS)
 
   const { profile, profileLoading, updateProfile } = useAuth()
+  const router = useRouter()
 
   const choose = (product: ProductRef | null) => {
     onSelect(product)
@@ -196,6 +199,14 @@ export function Sidebar({
           <div className="mt-6">
             <SectionLabel collapsed={collapsed}>Workspace</SectionLabel>
             <ul className="flex flex-col gap-1">
+              <li>
+                <RailButton
+                  collapsed={collapsed}
+                  icon={Boxes}
+                  label="Manage products"
+                  onClick={() => router.push("/products")}
+                />
+              </li>
               <li>
                 <RailButton
                   collapsed={collapsed}

@@ -7,6 +7,16 @@ from .serializers import ProductSerializer
 from .services import ProductService
 from .models import StockLog
 
+
+def validation_message(exc):
+    detail = exc.detail
+    if isinstance(detail, dict):
+        detail = [message for messages in detail.values() for message in messages]
+    if isinstance(detail, list):
+        return " ".join(str(message) for message in detail)
+    return str(detail)
+
+
 class ProductViewSet(BusinessScopedMixin, viewsets.GenericViewSet):
     def paginate_and_respond(self, queryset):
         page = self.paginate_queryset(queryset)
@@ -178,7 +188,7 @@ class ProductViewSet(BusinessScopedMixin, viewsets.GenericViewSet):
         try:
             product = service.decrease_stock(pk, business, amount, reason)
         except ValidationError as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": validation_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(product)
         return Response(serializer.data)
@@ -215,7 +225,7 @@ class ProductViewSet(BusinessScopedMixin, viewsets.GenericViewSet):
         try:
             product = service.increase_stock(pk, business, amount, reason)
         except ValidationError as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": validation_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = ProductSerializer(product)
         return Response(serializer.data)
