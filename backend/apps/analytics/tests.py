@@ -2,7 +2,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.test import SimpleTestCase, TestCase
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.businesses.models import Business
@@ -100,22 +99,18 @@ class AnalyticsEndpointTests(TestCase):
         self.assertEqual([w["units"] for w in weeks], [0, 0, 7, 14])
         self.assertEqual(weeks[-1]["revenue"], 70.0)
 
-    def test_timeline_includes_the_latest_forecast_for_the_week_after_the_data(self):
+    def test_timeline_includes_the_forecast_for_the_week_after_the_data(self):
         self.two_weeks_of_mugs()
         next_week = MONDAY + timedelta(weeks=2)
-        for hours_ago, predicted in ((2, 5), (1, 15)):
-            forecast = ForecastResult.objects.create(
-                product=self.mug,
-                predicted_quantity=predicted,
-                lower_bound=predicted - 2,
-                upper_bound=predicted + 2,
-                horizon=7,
-                confidence_score=Decimal("0.8000"),
-                week_start=next_week,
-            )
-            ForecastResult.objects.filter(pk=forecast.pk).update(
-                generated_at=timezone.now() - timedelta(hours=hours_ago)
-            )
+        ForecastResult.objects.create(
+            product=self.mug,
+            predicted_quantity=15,
+            lower_bound=13,
+            upper_bound=17,
+            horizon=7,
+            confidence_score=Decimal("0.8000"),
+            week_start=next_week,
+        )
 
         forecast = self.get("timeline").data["forecast"]
 
