@@ -15,10 +15,16 @@ export type RegisterPayload = {
 }
 
 export type UserProfile = {
-  username: string
-  firstName?: string
-  lastName?: string
-  email?: string
+  id: number
+  email: string
+  first_name: string
+  last_name: string
+}
+
+export type UpdateProfilePayload = {
+  first_name: string
+  last_name: string
+  email: string
 }
 
 /** POST /api/token/ — exchange credentials for JWT tokens. */
@@ -53,5 +59,17 @@ export function register(payload: RegisterPayload) {
       email: payload.email,
       password: payload.password,
     },
+  })
+}
+
+/**
+ * API contract for a future profile update endpoint.
+ * Keep the payload snake_case to match Django ModelSerializer fields.
+ */
+export function updateCurrentUser(token: string, payload: UpdateProfilePayload) {
+  return apiFetch<UserProfile>("/api/user/me/", {
+    method: "PATCH",
+    token,
+    body: payload,
   })
 }
