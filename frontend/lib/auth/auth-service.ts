@@ -19,12 +19,22 @@ export type UserProfile = {
   email: string
   first_name: string
   last_name: string
+  currency: "EUR" | "USD"
+  horizon_days: 7 | 14 | 30
+  stockout_alerts: boolean
+  weekly_digest: boolean
+  live_stream: boolean
 }
 
 export type UpdateProfilePayload = {
-  first_name: string
-  last_name: string
-  email: string
+  first_name?: string
+  last_name?: string
+  email?: string
+  currency?: "EUR" | "USD"
+  horizon_days?: 7 | 14 | 30
+  stockout_alerts?: boolean
+  weekly_digest?: boolean
+  live_stream?: boolean
 }
 
 /** POST /api/token/ — exchange credentials for JWT tokens. */

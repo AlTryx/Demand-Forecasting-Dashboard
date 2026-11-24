@@ -27,6 +27,11 @@ class User(AbstractUser, TimeStampedModel):
         related_name='+',
     )
     oidc_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    currency = models.CharField(max_length=3, choices=[("EUR", "EUR"), ("USD", "USD")], default="EUR")
+    horizon_days = models.PositiveSmallIntegerField(choices=[(7, "7 days"), (14, "14 days"), (30, "30 days")], default=30)
+    stockout_alerts = models.BooleanField(default=True)
+    weekly_digest = models.BooleanField(default=False)
+    live_stream = models.BooleanField(default=True)
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email", "first_name", "last_name"]
