@@ -32,11 +32,14 @@ class BusinessListSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="business.name")
     created_at = serializers.DateTimeField(source="business.created_at")
     role = serializers.CharField()
-    is_active = serializers.BooleanField()
+    is_active = serializers.SerializerMethodField()
 
     class Meta:
         model = BusinessUser
         fields = ["id", "name", "role", "is_active", "created_at"]
+
+    def get_is_active(self, obj: BusinessUser) -> bool:
+        return obj.business_id == self.context.get("active_business_id")
 
 
 class BusinessCreateSerializer(serializers.Serializer):

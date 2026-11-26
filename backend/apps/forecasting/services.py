@@ -3,12 +3,11 @@ from decimal import Decimal
 
 import pandas as pd
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
-from apps.businesses.models import Business
 from apps.products.models import Product
 from apps.sales.models import DailySales, OrderLine
 from . import ml
@@ -18,22 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 class ForecastingService:
-    def get_latest_forecast_for_product(self, business, product_id):
-        try:
-            product = Product.objects.get(id=product_id, business=business)
-        except Product.DoesNotExist:
-            raise NotFound("Product not found or access denied.")
-        return ForecastResult.objects.filter(product=product).select_related("product")
+    def get_latest_forecasts(self, business, product_id=None):
+        forecasts = ForecastResult.objects.filter(product__business=business)
+        if product_id is not None:
+            if not Product.objects.filter(id=product_id, business=business).exists():
+                raise NotFound("Product not found or access denied.")
+            forecasts = forecasts.filter(product_id=product_id)
 
-    def get_latest_n_forecasts(self, business_id):
-        try:
-            business = Business.objects.get(id=business_id)
-        except Business.DoesNotExist:
-            raise NotFound("Business not found or access denied.")
+        newest_per_product = (
+            forecasts.order_by("product_id", F("week_start").desc(nulls_last=True), "-generated_at", "-id")
+            .distinct("product_id")
+            .values("id")
+        )
         return (
-            ForecastResult.objects.filter(product__business=business)
+            ForecastResult.objects.filter(id__in=newest_per_product)
             .select_related("product")
-            .order_by('-created_at')[:100]
+            .order_by("product__name", "id")
         )
 
     @classmethod
@@ -104,6 +103,20 @@ class ForecastingService:
             for row in predictions.itertuples()
         ]
         with transaction.atomic():
-            ForecastResult.objects.bulk_create(forecasts, batch_size=1_000)
+            ForecastResult.objects.bulk_create(
+                forecasts,
+                batch_size=1_000,
+                update_conflicts=True,
+                unique_fields=["product", "week_start"],
+                update_fields=[
+                    "predicted_quantity",
+                    "lower_bound",
+                    "upper_bound",
+                    "horizon",
+                    "confidence_score",
+                    "generated_at",
+                    "updated_at",
+                ],
+            )
         logger.info("Saved %d forecasts", len(forecasts))
         return len(forecasts)

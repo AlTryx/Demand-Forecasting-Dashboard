@@ -1,17 +1,15 @@
 from rest_framework import viewsets
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from core.tenancy import BusinessScopedMixin
 from .serializers import InventoryDashboardSerializer
 from .services import InventoryService
 
-class InventoryViewSet(viewsets.ReadOnlyModelViewSet):
+class InventoryViewSet(BusinessScopedMixin, viewsets.ReadOnlyModelViewSet):
     inventory_service = InventoryService()
     serializer_class = InventoryDashboardSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        business_user = self.request.user.businessuser_set.filter(is_active=True).first()
-        return self.inventory_service.get_annotated_inventory_list(business=business_user.business)
+        return self.inventory_service.get_annotated_inventory_list(business=self.business)
 
     def retrieve(self, request, pk=None):
         inventory = self.get_object()

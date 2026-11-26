@@ -23,6 +23,10 @@ class ForecastResult(TimeStampedModel):
             models.CheckConstraint(
                 condition=models.Q(predicted_quantity__gte=0),
                 name="forecast_result_predicted_quantity_gte_0"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["product", "week_start"],
+                name="forecast_result_one_per_product_week",
+            ),
         ]
         ordering = ["-generated_at"]

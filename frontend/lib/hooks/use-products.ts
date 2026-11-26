@@ -1,15 +1,15 @@
 "use client"
 
 import { useCallback } from "react"
-import { listProducts } from "@/lib/api/products-service"
+import { listProducts, searchProducts } from "@/lib/api/products-service"
 import { useApiData } from "./use-api-data"
-import type { PaginatedResponse } from "@/lib/types/product"
-import type { Product } from "@/lib/types/product"
+import type { PaginatedResponse, Product } from "@/lib/types/product"
 
-export function useProducts(page = 1) {
+export function useProducts(page = 1, query = "") {
+  const trimmed = query.trim()
   const fetcher = useCallback(
-    (token: string) => listProducts(token, page),
-    [page],
+    (token: string) => (trimmed ? searchProducts(trimmed, token, page) : listProducts(token, page)),
+    [page, trimmed],
   )
   return useApiData<PaginatedResponse<Product>>(fetcher)
 }

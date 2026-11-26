@@ -52,11 +52,14 @@ class Command(BaseCommand):
                 business_user, _ = BusinessUser.objects.get_or_create(
                     user=base_user,
                     business=business,
-                    defaults={"role": BusinessUser.Roles.OWNER, "is_active": True}
+                    defaults={"role": BusinessUser.Roles.OWNER}
                 )
                 if not business.owner_id:
                     business.owner = business_user
                     business.save()
+                if base_user.active_business_id is None:
+                    base_user.active_business = business
+                    base_user.save(update_fields=["active_business"])
 
                 business_cache[store_id] = business
 

@@ -1,43 +1,36 @@
 from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError
+from core.tenancy import BusinessScopedMixin
 from .models import ForecastResult
 from .serializers import ForecastResultSerializer
 from .services import ForecastingService
-from apps.products.services import ProductService
-from rest_framework.exceptions import PermissionDenied, ValidationError
 
-class ForecastingViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
-    permission_classes=[IsAuthenticated]
 
-    queryset = ForecastResult.objects.all()
+class ForecastPagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = "page_size"
+    max_page_size = 500
 
-    def get_business(self, request):
-        business_user = request.user.businessuser_set.filter(is_active=True).first()
-        if not business_user:
-            raise PermissionDenied("User has no active business")
-        return business_user.business
 
-    def list(self, request, *args, **kwargs):
-        forecasting_service = ForecastingService()
-        business = self.get_business(request)
-        business_id = business.id
-        product_id = request.query_params.get('product_id')
+class ForecastingViewSet(BusinessScopedMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = ForecastResultSerializer
+    pagination_class = ForecastPagination
+    queryset = ForecastResult.objects.none()
 
-        if product_id:
-            forecasting_queryset = forecasting_service.get_latest_forecast_for_product(
-                business=business,
-                product_id=product_id
-            )
+    def get_queryset(self):
+        product_id = self.request.query_params.get("product_id")
+        if product_id is not None:
+            try:
+                product_id = int(product_id)
+            except ValueError:
+                raise ValidationError({"product_id": "Must be a whole number."})
 
-        else:
-            forecasting_queryset = forecasting_service.get_latest_n_forecasts(business_id)
-
-        serializer = ForecastResultSerializer(forecasting_queryset, many=True)
-        return Response(serializer.data)
+        return ForecastingService().get_latest_forecasts(self.business, product_id)
 
     @action(detail=False, methods=["post"], url_path="run")
     def run(self, request):
-        created = ForecastingService.run_for_business(self.get_business(request))
+        created = ForecastingService.run_for_business(self.business)
         return Response({"forecasts_created": created})

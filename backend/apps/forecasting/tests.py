@@ -243,9 +243,94 @@ class RunForBusinessTests(TestCase):
 
         self.assertEqual(run.status_code, 200)
         self.assertEqual(run.data, {"forecasts_created": len(self.products)})
-        self.assertEqual(listing.data[0]["product_name"], "Item 0")
-        self.assertEqual(listing.data[0]["product_price"], "2.00")
+        result = listing.data["results"][0]
+        self.assertEqual(result["product_name"], "Item 0")
+        self.assertEqual(result["product_price"], "2.00")
         self.assertEqual(
-            listing.data[0]["target_date"],
+            result["target_date"],
             (self.start + datetime.timedelta(weeks=self.weeks)).isoformat(),
         )
+
+    def test_rerun_updates_the_existing_forecasts_instead_of_adding_new_ones(self):
+        ForecastingService.run_for_business(self.shop)
+        first = ForecastResult.objects.get(product=self.products[0])
+        ForecastResult.objects.filter(id=first.id).update(predicted_quantity=0)
+
+        ForecastingService.run_for_business(self.shop)
+
+        self.assertEqual(ForecastResult.objects.count(), len(self.products))
+        rerun = ForecastResult.objects.get(product=self.products[0])
+        self.assertEqual(rerun.id, first.id)
+        self.assertEqual(rerun.predicted_quantity, first.predicted_quantity)
+        self.assertGreater(rerun.generated_at, first.generated_at)
+
+
+class LatestForecastApiTests(TestCase):
+    week_1 = datetime.date(2026, 11, 2)
+    week_2 = datetime.date(2026, 11, 9)
+
+    def setUp(self):
+        self.shop = Business.objects.create(name="Shop")
+        self.milk = self.product("Milk", self.shop)
+        self.bread = self.product("Bread", self.shop)
+        self.legacy = self.product("Legacy", self.shop)
+        self.forecast(self.milk, None, 5)
+        self.forecast(self.milk, self.week_1, 10)
+        self.forecast(self.milk, self.week_2, 20)
+        self.forecast(self.bread, self.week_1, 30)
+        self.forecast(self.legacy, None, 40)
+
+        other_shop = Business.objects.create(name="Other shop")
+        self.other_product = self.product("Cheese", other_shop)
+        self.forecast(self.other_product, self.week_2, 50)
+
+        self.client = APIClient()
+        self.client.force_authenticate(make_user("owner", self.shop))
+
+    @staticmethod
+    def product(name, business):
+        return Product.objects.create(name=name, category="Food", price=1, current_stock=0, business=business)
+
+    @staticmethod
+    def forecast(product, week_start, quantity):
+        return ForecastResult.objects.create(
+            product=product,
+            week_start=week_start,
+            predicted_quantity=quantity,
+            horizon=ForecastResult.HorizonOptions.ONE_WEEK,
+            confidence_score=0.9,
+        )
+
+    def test_product_id_returns_only_the_newest_week(self):
+        response = self.client.get("/api/forecasting/results/", {"product_id": self.milk.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["predicted_quantity"], 20)
+        self.assertEqual(response.data["results"][0]["target_date"], self.week_2.isoformat())
+
+    def test_list_returns_one_forecast_per_product_of_this_shop_only(self):
+        response = self.client.get("/api/forecasting/results/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [(r["product_name"], r["predicted_quantity"]) for r in response.data["results"]],
+            [("Bread", 30), ("Legacy", 40), ("Milk", 20)],
+        )
+
+    def test_list_is_paginated(self):
+        response = self.client.get("/api/forecasting/results/", {"page_size": 2})
+
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(len(response.data["results"]), 2)
+        self.assertIsNotNone(response.data["next"])
+
+    def test_another_shops_product_is_not_found(self):
+        response = self.client.get("/api/forecasting/results/", {"product_id": self.other_product.id})
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_non_numeric_product_id_is_rejected(self):
+        response = self.client.get("/api/forecasting/results/", {"product_id": "abc"})
+
+        self.assertEqual(response.status_code, 400)

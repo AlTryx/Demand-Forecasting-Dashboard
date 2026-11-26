@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth/auth-context"
 import {
   Activity,
+  Boxes,
   ChevronLeft,
   LayoutGrid,
   Package,
@@ -53,6 +55,7 @@ export function Sidebar({
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS)
 
   const { profile, profileLoading, updateProfile } = useAuth()
+  const router = useRouter()
 
   const choose = (product: ProductRef | null) => {
     onSelect(product)
@@ -60,23 +63,18 @@ export function Sidebar({
   }
 
   useEffect(() => {
-    if (profile?.id) {
-      const storedSettings = localStorage.getItem(`dashboard-settings-${profile.id}`)
-      if (storedSettings) {
-        try {
-          setSettings(JSON.parse(storedSettings) as DashboardSettings)
-        } catch {
-          setSettings(DEFAULT_SETTINGS)
-        }
-      }
+    if (!profile) {
+      setSettings(DEFAULT_SETTINGS)
+      return
     }
-  }, [profile?.id])
-
-  useEffect(() => {
-    if (profile?.id) {
-      localStorage.setItem(`dashboard-settings-${profile.id}`, JSON.stringify(settings))
-    }
-  }, [settings, profile?.id])
+    setSettings({
+      currency: profile.currency,
+      horizonDays: profile.horizon_days,
+      stockoutAlerts: profile.stockout_alerts,
+      weeklyDigest: profile.weekly_digest,
+      liveStream: profile.live_stream,
+    })
+  }, [profile])
 
   return (
     <>
@@ -199,6 +197,14 @@ export function Sidebar({
               <li>
                 <RailButton
                   collapsed={collapsed}
+                  icon={Boxes}
+                  label="Manage products"
+                  onClick={() => router.push("/products")}
+                />
+              </li>
+              <li>
+                <RailButton
+                  collapsed={collapsed}
                   icon={Users}
                   label="Team"
                   onClick={() => setTeamOpen(true)}
@@ -250,10 +256,19 @@ export function Sidebar({
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         settings={settings}
-        onSave={setSettings}
+        onSave={async (nextSettings) => {
+          await updateProfile({
+            currency: nextSettings.currency,
+            horizon_days: nextSettings.horizonDays,
+            stockout_alerts: nextSettings.stockoutAlerts,
+            weekly_digest: nextSettings.weeklyDigest,
+            live_stream: nextSettings.liveStream,
+          })
+          setSettings(nextSettings)
+        }}
         profile={profile}
         profileLoading={profileLoading}
-        onSaveProfile={(payload) => { void updateProfile(payload).catch(() => undefined) }}
+        onSaveProfile={(payload) => updateProfile(payload)}
       />
       <TeamDialog open={teamOpen} onClose={() => setTeamOpen(false)} />
     </>

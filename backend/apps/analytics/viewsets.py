@@ -1,10 +1,8 @@
 from rest_framework import serializers
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.products.permissions import HasActiveBusiness
-from core.utils import get_active_business
+from core.tenancy import BusinessScopedMixin
 from .services import AnalyticsService
 
 DEFAULT_TIMELINE_WEEKS = 12
@@ -17,15 +15,13 @@ class AnalyticsParams(serializers.Serializer):
     order_by = serializers.ChoiceField(choices=["units", "revenue"], required=False, default="revenue")
 
 
-class AnalyticsView(APIView):
-    permission_classes = [IsAuthenticated, HasActiveBusiness]
-
+class AnalyticsView(BusinessScopedMixin, APIView):
     def service_and_params(self, request, use_product=True):
         params = AnalyticsParams(data=request.query_params)
         params.is_valid(raise_exception=True)
         data = params.validated_data
         product_id = data.get("product_id") if use_product else None
-        return AnalyticsService(get_active_business(request.user), product_id), data
+        return AnalyticsService(self.business, product_id), data
 
 
 class SummaryView(AnalyticsView):

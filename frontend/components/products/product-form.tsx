@@ -1,119 +1,184 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import type { Product, ProductInput } from "@/lib/types/product"
 
-const EMPTY_FORM: ProductInput = {
+type FormState = {
+  name: string
+  category: string
+  price: string
+  current_stock: string
+  stock_keeping_unit: string
+}
+
+const EMPTY_FORM: FormState = {
   name: "",
   category: "",
   price: "",
-  current_stock: 0,
+  current_stock: "0",
+  stock_keeping_unit: "",
 }
 
 type ProductFormProps = {
   mode: "create" | "edit"
   initialValue?: Product | null
   submitting?: boolean
+  error?: string | null
   onSubmit: (payload: ProductInput) => Promise<void> | void
-  onCancel?: () => void
+  onCancel: () => void
 }
 
 export function ProductForm({
   mode,
   initialValue,
   submitting = false,
+  error,
   onSubmit,
   onCancel,
 }: ProductFormProps) {
-  const [form, setForm] = useState<ProductInput>(EMPTY_FORM)
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
 
   useEffect(() => {
-    if (initialValue) {
-      setForm({
-        name: initialValue.name,
-        category: initialValue.category,
-        price: initialValue.price,
-        current_stock: initialValue.current_stock,
-      })
-      return
-    }
-
-    setForm(EMPTY_FORM)
+    setForm(
+      initialValue
+        ? {
+            name: initialValue.name,
+            category: initialValue.category,
+            price: initialValue.price,
+            current_stock: String(initialValue.current_stock),
+            stock_keeping_unit: initialValue.stock_keeping_unit ?? "",
+          }
+        : EMPTY_FORM,
+    )
   }, [initialValue])
+
+  const updateField = (field: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     await onSubmit({
-      ...form,
-      price: form.price === "" ? 0 : Number(form.price),
-      current_stock: Number(form.current_stock),
+      name: form.name.trim(),
+      category: form.category.trim(),
+      price: form.price.trim(),
+      current_stock: Number.parseInt(form.current_stock, 10) || 0,
+      stock_keeping_unit: form.stock_keeping_unit.trim() || null,
     })
   }
 
-  const updateField = <K extends keyof ProductInput>(field: K, value: ProductInput[K]) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
-  }
+  const isEdit = mode === "edit"
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border bg-card p-5 shadow-sm">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm">
-          <span className="text-muted-foreground">Name</span>
-          <input
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-base font-semibold">{isEdit ? `Edit ${initialValue?.name ?? "product"}` : "New product"}</h2>
+        {!isEdit && <p className="text-xs text-muted-foreground">Fields marked * are required</p>}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field id="product-name" label="Name *">
+          <Input
+            id="product-name"
             value={form.name}
             onChange={(e) => updateField("name", e.target.value)}
+            maxLength={255}
             required
-            className="w-full rounded-md border bg-background px-3 py-2"
+            autoFocus
           />
-        </label>
+        </Field>
 
-        <label className="space-y-2 text-sm">
-          <span className="text-muted-foreground">Category</span>
-          <input
+        <Field id="product-sku" label="SKU">
+          <Input
+            id="product-sku"
+            value={form.stock_keeping_unit}
+            onChange={(e) => updateField("stock_keeping_unit", e.target.value)}
+            maxLength={50}
+            placeholder="Optional"
+          />
+        </Field>
+
+        <Field id="product-category" label="Category *">
+          <Input
+            id="product-category"
             value={form.category}
             onChange={(e) => updateField("category", e.target.value)}
+            maxLength={20}
             required
-            className="w-full rounded-md border bg-background px-3 py-2"
           />
-        </label>
+        </Field>
 
-        <label className="space-y-2 text-sm">
-          <span className="text-muted-foreground">Price</span>
-          <input
+        <Field id="product-price" label="Price (€) *">
+          <Input
+            id="product-price"
             type="number"
+            inputMode="decimal"
             step="0.01"
             min="0"
             value={form.price}
             onChange={(e) => updateField("price", e.target.value)}
             required
-            className="w-full rounded-md border bg-background px-3 py-2"
           />
-        </label>
+        </Field>
 
-        <label className="space-y-2 text-sm">
-          <span className="text-muted-foreground">Current stock</span>
-          <input
+        <Field
+          id="product-stock"
+          label={isEdit ? "Stock on hand" : "Opening stock *"}
+          hint={isEdit ? "Use Adjust stock so every change is recorded with a reason." : undefined}
+        >
+          <Input
+            id="product-stock"
             type="number"
+            inputMode="numeric"
+            step="1"
             min="0"
             value={form.current_stock}
-            onChange={(e) => updateField("current_stock", Number(e.target.value))}
-            required
-            className="w-full rounded-md border bg-background px-3 py-2"
+            onChange={(e) => updateField("current_stock", e.target.value)}
+            disabled={isEdit}
+            required={!isEdit}
           />
-        </label>
+        </Field>
       </div>
 
+      {error && (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
       <div className="flex justify-end gap-3">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
-            Cancel
-          </Button>
-        )}
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? (mode === "create" ? "Creating..." : "Saving...") : mode === "create" ? "Create product" : "Save changes"}
+          {submitting ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save changes" : "Create product"}
         </Button>
       </div>
     </form>
+  )
+}
+
+function Field({
+  id,
+  label,
+  hint,
+  children,
+}: {
+  id: string
+  label: string
+  hint?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className="text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
   )
 }
