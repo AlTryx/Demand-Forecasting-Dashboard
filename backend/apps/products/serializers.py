@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product
+from .models import Product, StockLog
 from .services import ProductService
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -29,6 +29,16 @@ class ProductSerializer(serializers.ModelSerializer):
             business=self.context.get("business"),
             **validated_data,
         )
+
+
+class StockLogSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField(source="product_id", read_only=True)
+
+    class Meta:
+        model = StockLog
+        fields = ["id", "product", "product_id", "quantity_changed", "reason", "created_at"]
+        read_only_fields = fields
+
 
 # TO DO: class StockSerializer(serializers.Serializer):
 #     amount = serializers.IntegerField(min_value=1)

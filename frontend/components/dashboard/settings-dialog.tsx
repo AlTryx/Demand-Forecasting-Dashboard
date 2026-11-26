@@ -99,10 +99,10 @@ type SettingsDialogProps = {
   open: boolean
   onClose: () => void
   settings: DashboardSettings
-  onSave: (settings: DashboardSettings) => void
+  onSave: (settings: DashboardSettings) => void | Promise<void>
   profile: UserProfile | null
   profileLoading: boolean
-  onSaveProfile: (payload: UpdateProfilePayload) => void
+  onSaveProfile: (payload: UpdateProfilePayload) => void | Promise<unknown>
 }
 
 export function SettingsDialog({
@@ -120,10 +120,13 @@ export function SettingsDialog({
     last_name: "",
     email: "",
   })
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Reset the working copies whenever the dialog is (re)opened.
   useEffect(() => {
     if (open) {
+      setSaveError(null)
       setDraft(settings)
       setProfileDraft({
         first_name: profile?.first_name ?? "",
@@ -161,19 +164,32 @@ export function SettingsDialog({
           </button>
           <button
             type="button"
-            onClick={() => {
-              onSave(draft)
-              onSaveProfile(profileDraft)
-              onClose()
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true)
+              setSaveError(null)
+              try {
+                await Promise.all([onSave(draft), onSaveProfile(profileDraft)])
+                onClose()
+              } catch (error) {
+                setSaveError(error instanceof Error ? error.message : "Could not save settings")
+              } finally {
+                setSaving(false)
+              }
             }}
-            className="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            className="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save changes
+            {saving ? "Saving…" : "Save changes"}
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-6">
+        {saveError && (
+          <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {saveError}
+          </p>
+        )}
         <div className="flex flex-col gap-4">
           <div>
             <h3 className="text-sm font-semibold text-foreground">Profile</h3>

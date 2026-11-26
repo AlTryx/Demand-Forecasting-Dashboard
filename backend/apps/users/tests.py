@@ -30,6 +30,11 @@ class UserProfileEndpointTests(TestCase):
             "email": "profile@example.com",
             "first_name": "Alex",
             "last_name": "Morgan",
+            "currency": "EUR",
+            "horizon_days": 30,
+            "stockout_alerts": True,
+            "weekly_digest": False,
+            "live_stream": True,
         })
 
     def test_me_partially_updates_current_user_profile(self):
@@ -62,3 +67,26 @@ class UserProfileEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("email", response.data)
+
+    def test_me_persists_dashboard_settings(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.patch(self.url, {
+            "currency": "USD",
+            "horizon_days": 14,
+            "stockout_alerts": False,
+            "weekly_digest": True,
+            "live_stream": False,
+        }, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.currency, "USD")
+        self.assertEqual(self.user.horizon_days, 14)
+        self.assertFalse(self.user.stockout_alerts)
+        self.assertTrue(self.user.weekly_digest)
+        self.assertFalse(self.user.live_stream)
+
+        reread = self.client.get(self.url)
+        self.assertEqual(reread.data["currency"], "USD")
+        self.assertEqual(reread.data["horizon_days"], 14)
