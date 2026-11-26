@@ -99,6 +99,7 @@ class ForecastingService:
                 upper_bound=None if pd.isna(row.upper) else round(row.upper),
                 horizon=ForecastResult.HorizonOptions.ONE_WEEK,
                 confidence_score=Decimal(str(round(row.confidence, 4))),
+                method=row.method,
             )
             for row in predictions.itertuples()
         ]
@@ -114,6 +115,7 @@ class ForecastingService:
                     "upper_bound",
                     "horizon",
                     "confidence_score",
+                    "method",
                     "generated_at",
                     "updated_at",
                 ],

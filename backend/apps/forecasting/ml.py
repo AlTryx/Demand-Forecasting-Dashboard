@@ -184,7 +184,22 @@ def forecast(daily: pd.DataFrame, as_of=None, holdout_weeks: int = HOLDOUT_WEEKS
         model_rows, fallback_rows = future[has_history], future[~has_history]
 
     frames = []
-    if not model_rows.empty:
+    if not model_rows.empty and report.model_wape >= report.naive_wape:
+        naive_wape = report.per_series.set_index("series_id")["naive_wape"]
+        frames.append(
+            pd.DataFrame(
+                {
+                    "series_id": model_rows["series_id"].to_numpy(),
+                    "week_start": model_rows["week_start"].to_numpy(),
+                    "predicted": model_rows["naive"].to_numpy(),
+                    "lower": np.nan,
+                    "upper": np.nan,
+                    "confidence": (1 - model_rows["series_id"].map(naive_wape)).clip(0, 1).fillna(0).to_numpy(),
+                    "method": "last_week",
+                }
+            )
+        )
+    elif not model_rows.empty:
         p10, p50, p90 = _predict(_fit(_labelled_rows(features)), model_rows).T
         wape = report.per_series.set_index("series_id")["wape"]
         confidence = (1 - model_rows["series_id"].map(wape)).clip(0, 1).fillna(0)

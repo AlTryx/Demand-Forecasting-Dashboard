@@ -1,4 +1,5 @@
 import datetime
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -146,6 +147,21 @@ class ForecastTests(SimpleTestCase):
         self.assertIsNone(output.report)
         self.assertEqual(len(output.predictions), 2)
         self.assertTrue((output.predictions["method"] == "naive").all())
+
+    def test_model_that_loses_to_last_week_is_replaced_by_last_week(self):
+        report = ml.backtest(ml.build_features(ml.to_weekly(self.sales)))
+        report.model_wape = report.naive_wape + 0.01
+        weekly = ml.to_weekly(self.sales)
+        last_week = weekly[weekly["week_start"] == weekly["week_start"].max()].set_index("series_id")["quantity"]
+
+        with mock.patch.object(ml, "backtest", return_value=report):
+            predictions = ml.forecast(self.sales).predictions.set_index("series_id")
+
+        self.assertTrue((predictions["method"] == "last_week").all())
+        pd.testing.assert_series_equal(predictions["predicted"], last_week, check_names=False, check_index_type=False)
+        self.assertTrue(predictions["upper"].isna().all())
+        expected = (1 - report.per_series.set_index("series_id")["naive_wape"]).clip(0, 1)
+        pd.testing.assert_series_equal(predictions["confidence"], expected, check_names=False, check_index_type=False)
 
     def test_no_sales_gives_no_forecasts(self):
         output = ml.forecast(pd.DataFrame(columns=["series_id", "date", "quantity"]))

@@ -23,6 +23,7 @@ class ForecastResultSerializer(serializers.ModelSerializer):
             'horizon',
             'horizon_display',
             'confidence_score',
+            'method',
             'generated_at',
             'target_date'
         ]

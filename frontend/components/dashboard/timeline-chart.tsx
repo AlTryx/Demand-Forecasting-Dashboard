@@ -46,7 +46,7 @@ function toPoints(timeline: SalesTimeline, avgUnitPrice: number | null): Timelin
     last.lower = last.actual
     last.upper = last.actual
     points.push({
-      label: `${formatWeekLabel(forecast.week_start)} (next)`,
+      label: formatWeekLabel(forecast.week_start),
       actual: null,
       predicted: forecast.predicted,
       lower: forecast.lower ?? forecast.predicted,
@@ -56,6 +56,49 @@ function toPoints(timeline: SalesTimeline, avgUnitPrice: number | null): Timelin
     })
   }
   return points
+}
+
+const MAX_TICKS = 7
+
+function pickTicks(points: TimelinePoint[]): string[] {
+  const nowIndex = points.findLastIndex((p) => !p.isForecast)
+  const step = Math.max(1, Math.ceil((nowIndex + 1) / (MAX_TICKS - 1)))
+  return points
+    .filter((p, i) => p.isForecast || (nowIndex - i) % step === 0)
+    .map((p) => p.label)
+}
+
+function AxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  nowLabel,
+  nextLabel,
+}: {
+  x?: number
+  y?: number
+  payload?: { value: string }
+  nowLabel?: string
+  nextLabel?: string
+}) {
+  const value = payload?.value ?? ""
+  const marker = value === nextLabel ? "next" : value === nowLabel ? "now" : null
+  return (
+    <text x={x} y={y} dy={16} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">
+      <tspan x={x}>{value}</tspan>
+      {marker ? (
+        <tspan
+          x={x}
+          dy={14}
+          fontSize={11}
+          fontWeight={500}
+          fill={marker === "next" ? "var(--chart-1)" : "var(--foreground)"}
+        >
+          {marker}
+        </tspan>
+      ) : null}
+    </text>
+  )
 }
 
 function ChartTooltip({
@@ -108,6 +151,9 @@ function ChartTooltip({
 export function TimelineChart({ timeline, avgUnitPrice }: TimelineChartProps) {
   const data = timeline ? toPoints(timeline, avgUnitPrice) : []
   const weeks = timeline?.weeks.length ?? 0
+  const ticks = pickTicks(data)
+  const nowLabel = data.findLast((p) => !p.isForecast)?.label
+  const nextLabel = data.find((p) => p.isForecast)?.label
 
   return (
     <section className="rounded-xl border border-border bg-card">
@@ -164,10 +210,10 @@ export function TimelineChart({ timeline, avgUnitPrice }: TimelineChartProps) {
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
-                interval="preserveStartEnd"
-                minTickGap={24}
-                dy={8}
+                ticks={ticks}
+                interval={0}
+                height={44}
+                tick={<AxisTick nowLabel={nowLabel} nextLabel={nextLabel} />}
               />
               <YAxis
                 axisLine={false}
